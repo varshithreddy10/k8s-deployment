@@ -113,7 +113,7 @@ jobs:
           echo "Response: $RESPONSE"
 
           if [ "$RESPONSE" = "authuser" ]; then
-            echo "Container validation successful"
+            echo "Container validation successful authuser == authuser"
           else
             echo "Container validation failed"
 
