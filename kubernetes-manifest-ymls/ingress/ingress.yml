@@ -5,6 +5,10 @@ metadata:
   name: ecommerce-ingress
   namespace: default
 
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+
 spec:
   ingressClassName: nginx
 
@@ -12,48 +16,110 @@ spec:
     - http:
         paths:
 
-          - path: /admin
-            pathType: Prefix
+          # =========================
+          # ADMIN API
+          # Base Path -> /admin
+          # Controller -> /api/admin
+          # Final URL:
+          # /admin/api/admin/check/adminapi
+          # =========================
+          - path: /admin(/|$)(.*)
+            pathType: ImplementationSpecific
+
             backend:
               service:
                 name: adminapi-service
                 port:
                   number: 80
 
-          - path: /auth
-            pathType: Prefix
+          # =========================
+          # AUTH USER API
+          # Base Path -> /auth
+          # Controller -> /api/auth
+          # Final URL:
+          # /auth/api/auth/check/authuser
+          # =========================
+          - path: /auth(/|$)(.*)
+            pathType: ImplementationSpecific
+
             backend:
               service:
                 name: authuser-service
                 port:
                   number: 80
 
-          - path: /cart
-            pathType: Prefix
+          # =========================
+          # CART API
+          # Base Path -> /cart
+          # Controller -> /api/carts
+          # Final URL:
+          # /cart/api/carts/check/cartapi
+          # =========================
+          - path: /cart(/|$)(.*)
+            pathType: ImplementationSpecific
+
             backend:
               service:
                 name: cartapi-service
                 port:
                   number: 80
 
-          - path: /customer
-            pathType: Prefix
+          # =========================
+          # CUSTOMER API
+          # Controller -> /api/customer
+          # Final URL:
+          # /customer/api/customer/check/customerapi
+          # =========================
+          - path: /customer(/|$)(.*)
+            pathType: ImplementationSpecific
+
             backend:
               service:
                 name: customerapi-service
                 port:
                   number: 80
 
-          - path: /order
-            pathType: Prefix
+          # =========================
+          # CUSTOMER ADDRESS API
+          # Controller -> /api/address
+          # Final URL:
+          # /customer/api/address/getall/addresses
+          # =========================
+          - path: /customer(/|$)(.*)
+            pathType: ImplementationSpecific
+
+            backend:
+              service:
+                name: customerapi-service
+                port:
+                  number: 80
+
+          # =========================
+          # ORDER API
+          # Base Path -> /order
+          # Controller -> /api/orders
+          # Final URL:
+          # /order/api/orders/check/orderapi
+          # =========================
+          - path: /order(/|$)(.*)
+            pathType: ImplementationSpecific
+
             backend:
               service:
                 name: orderapi-service
                 port:
                   number: 80
 
-          - path: /product
-            pathType: Prefix
+          # =========================
+          # PRODUCT API
+          # Base Path -> /product
+          # Controller -> /api/products
+          # Final URL:
+          # /product/api/products/check/productapi
+          # =========================
+          - path: /product(/|$)(.*)
+            pathType: ImplementationSpecific
+
             backend:
               service:
                 name: productapi-service
