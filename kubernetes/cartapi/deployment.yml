@@ -24,7 +24,7 @@ spec:
 
         - name: cartapi
 
-          image: varshithreddy144/cartapi:25622285973
+          image: varshithreddy144/cartapi:25622352390
 
           ports:
             - containerPort: 7004
