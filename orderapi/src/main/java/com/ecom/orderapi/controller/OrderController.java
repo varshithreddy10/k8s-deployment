@@ -20,12 +20,12 @@ public class OrderController
     @Autowired
     private OrderRepository orderrepo;
 
-//    @PostMapping("/createorder")
-//    public ResponseEntity<PurchaseOrderResponseDto> createOrder(@RequestBody PurchaseOrderRequestDto purchaseorder)
-//    {
-//        PurchaseOrderResponseDto purchaseresponse = orderservice.createOrderServ(purchaseorder);
-//        return new ResponseEntity<>(purchaseresponse , HttpStatus.CREATED);
-//    }
+    @GetMapping("/check/orderapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "orderapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
 
     @GetMapping("/getall/orders")
     public  ResponseEntity<List<OrderResponseDto>> getAllOrders()

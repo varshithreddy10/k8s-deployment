@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: orderapi
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: orderapi
+
+  template:
+
+    metadata:
+      labels:
+        app: orderapi
+
+    spec:
+
+      containers:
+
+        - name: orderapi
+
+          image: varshithreddy144/orderapi:latest
+
+          ports:
+            - containerPort: 7005

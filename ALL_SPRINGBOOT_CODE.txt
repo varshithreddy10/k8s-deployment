@@ -1,6 +1,163 @@
 ﻿================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\.github\workflows\customerapi-ci.yml ================
+name: customerapi-ci
+
 on:
+  push:
+    branches:
+      - main
+
+    paths:
+      - 'customerapi/**'
+      - '.github/workflows/customerapi-ci.yml'
+
+
 jobs:
+
+  code-quality:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fake Code Quality Check
+        run: |
+          echo "Checking code quality..."
+          sleep 15
+          echo "Code quality check completed"
+
+
+  docker:
+
+    runs-on: ubuntu-latest
+
+    needs: code-quality
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./customerapi
+          file: ./customerapi/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}
+
+
+  container-test:
+
+    runs-on: ubuntu-latest
+
+    needs: docker
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Pull Docker Image
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}
+
+      - name: Run Docker Container
+        run: |
+          docker run -d \
+            --name customerapi-container \
+            -p 7003:7003 \
+            ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}
+
+      - name: Wait for Application Startup
+        run: |
+          echo "Waiting for Spring Boot application..."
+
+          for i in {1..12}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:7003/api/customer/check/customerapi || true)
+
+            if [ "$STATUS" = "201" ]; then
+              echo "Application started successfully"
+              exit 0
+            fi
+
+            echo "Application not ready yet..."
+            sleep 5
+          done
+
+          echo "Application failed to start"
+
+          docker logs customerapi-container
+
+          exit 1
+
+      - name: Validate API Response
+        run: |
+          RESPONSE=$(curl -s http://localhost:7003/api/customer/check/customerapi)
+
+          echo "Response: $RESPONSE"
+
+          if [ "$RESPONSE" = "customerapi" ]; then
+            echo "Container validation successful"
+          else
+            echo "Container validation failed"
+
+            docker logs customerapi-container
+
+            exit 1
+          fi
+
+      - name: Stop Container
+        run: |
+          docker stop customerapi-container
+          docker rm customerapi-container
+
+
+  update-k8s:
+
+    runs-on: ubuntu-latest
+
+    needs: container-test
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Update Kubernetes Deployment Manifest
+        run: |
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}|" kubernetes/customerapi/deployment.yml
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.email "varshithreddy1009@github.com"
+
+          git config --global user.name "varshithreddy10"
+
+          git add kubernetes/customerapi/deployment.yml
+
+          git commit -m "[CI]: Update customerapi image tag" || echo "No changes to commit"
+
+          git push origin main
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\cartapi\pom.xml ================
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1015,6 +1172,44 @@ class CartapiApplicationTests {
 
 }
 
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\customerapi\Dockerfile ================
+# ==========================================
+# Stage 1 â†’ Build Stage
+# ==========================================
+
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+
+# Set working directory inside container
+WORKDIR /app
+
+# Copy Maven configuration file
+COPY pom.xml .
+
+# Copy source code
+COPY src ./src
+
+# Build Spring Boot application
+RUN mvn clean package -DskipTests
+
+
+# ==========================================
+# Stage 2 â†’ Runtime Stage
+# ==========================================
+
+FROM eclipse-temurin:17-jdk
+
+# Set working directory
+WORKDIR /app
+
+# Copy generated JAR from builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
+# Expose Spring Boot application port
+EXPOSE 7003
+
+# Start Spring Boot application
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\customerapi\pom.xml ================
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -1054,6 +1249,11 @@ class CartapiApplicationTests {
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -1061,11 +1261,7 @@ class CartapiApplicationTests {
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
-		<dependency>
-			<groupId>com.mysql</groupId>
-			<artifactId>mysql-connector-j</artifactId>
-			<scope>runtime</scope>
-		</dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -1099,11 +1295,7 @@ class CartapiApplicationTests {
 			<version>2.8.13</version>
 		</dependency>
 
-		<dependency>
-			<groupId>com.mysql</groupId>
-			<artifactId>mysql-connector-j</artifactId>
-			<scope>runtime</scope>
-		</dependency>
+
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -1249,6 +1441,7 @@ import java.util.List;
 @RequestMapping("/api/address")
 public class AddressController
 {
+    // 1 time change 2 time 3 time 4 time 5 time
     @Autowired
     private AddressService addressservice;
 
@@ -1321,6 +1514,13 @@ public class CustomerController
 
     @Autowired
     private CustomerRepository customerrepo;
+
+    @GetMapping("/check/customerapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "customerapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
 
     @PostMapping("/add/customer")
     public ResponseEntity<CustomerDto> addNewCustomer(@RequestBody CustomerDto customerdto)
@@ -1837,18 +2037,51 @@ public class CustomerServiceImpl implements CustomerService
 spring.application.name=customerapi
 
 
-spring.datasource.url=jdbc:mysql://localhost:3306/latest_microservices_ecommerce_db
-spring.datasource.username=root
-spring.datasource.password=Nvr144@144
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+# =================================
+# H2 DATABASE CONFIGURATION
+# =================================
+
+spring.datasource.url=jdbc:h2:mem:testdb
+
+spring.datasource.driver-class-name=org.h2.Driver
+
+spring.datasource.username=sa
+
+spring.datasource.password=
+
+
+# =================================
+# JPA / HIBERNATE
+# =================================
+
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
 
 spring.jpa.hibernate.ddl-auto=update
+
 spring.jpa.show-sql=true
+
+
+# =================================
+# H2 CONSOLE
+# =================================
+
+spring.h2.console.enabled=true
+
+spring.h2.console.path=/h2-console
+
+
+# =================================
+# SERVER
+# =================================
 
 server.port=7003
 
-eureka.instance.prefer-ip-address=true
 
+# =================================
+# EUREKA
+# =================================
+
+eureka.client.enabled=false
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\customerapi\src\test\java\com\ecom\customerapi\CustomerapiApplicationTests.java ================
 package com.ecom.customerapi;
@@ -1891,7 +2124,7 @@ spec:
 
         - name: customerapi
 
-          image: varshithreddy144/customerapi:latest
+          image: varshithreddy144/customerapi:25620475483
 
           ports:
             - containerPort: 7003
@@ -1948,9 +2181,9 @@ spec:
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -3170,18 +3403,52 @@ public class OrderServiceImpl implements  OrderService
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\orderapi\src\main\resources\application.properties ================
 spring.application.name=orderapi
 
-spring.datasource.url=jdbc:mysql://localhost:3306/latest_microservices_ecommerce_db
-spring.datasource.username=root
-spring.datasource.password=Nvr144@144
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# =================================
+# H2 DATABASE CONFIGURATION
+# =================================
+
+spring.datasource.url=jdbc:h2:mem:testdb
+
+spring.datasource.driver-class-name=org.h2.Driver
+
+spring.datasource.username=sa
+
+spring.datasource.password=
+
+
+# =================================
+# JPA / HIBERNATE
+# =================================
+
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
 
 spring.jpa.hibernate.ddl-auto=update
+
 spring.jpa.show-sql=true
+
+
+# =================================
+# H2 CONSOLE
+# =================================
+
+spring.h2.console.enabled=true
+
+spring.h2.console.path=/h2-console
+
+
+# =================================
+# SERVER CONFIGURATION
+# =================================
 
 server.port=7005
 
-eureka.instance.prefer-ip-address=true
 
+# =================================
+# DISABLE EUREKA
+# =================================
+
+eureka.client.enabled=false
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\orderapi\src\test\java\com\ecom\orderapi\OrderapiApplicationTests.java ================
 package com.ecom.orderapi;
