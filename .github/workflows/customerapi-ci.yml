@@ -144,7 +144,7 @@ jobs:
 
       - name: Update Kubernetes Deployment Manifest
         run: |
-          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}|" kubernetes/customerapi/deployment.yml
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}|" kubernetes-manifest-ymls/customerapi/deployment.yml
 
       - name: Commit and Push Changes
         run: |
@@ -152,7 +152,7 @@ jobs:
 
           git config --global user.name "varshithreddy10"
 
-          git add kubernetes/customerapi/deployment.yml
+          git add kubernetes-manifest-ymls/customerapi/deployment.yml
 
           git commit -m "[CI]: Update customerapi image tag" || echo "No changes to commit"
 

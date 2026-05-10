@@ -145,7 +145,7 @@ jobs:
 
       - name: Update Kubernetes Deployment Manifest
         run: |
-          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/adminapi:${{ github.run_id }}|" kubernetes/adminapi/deployment.yml
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/adminapi:${{ github.run_id }}|" kubernetes-manifest-ymls/adminapi/deployment.yml
 
       - name: Commit and Push Changes
         run: |
@@ -153,7 +153,7 @@ jobs:
 
           git config --global user.name "github-actions"
 
-          git add kubernetes/adminapi/deployment.yml
+          git add kubernetes-manifest-ymls/adminapi/deployment.yml
 
           git commit -m "[CI]: Update adminapi image tag" || echo "No changes to commit"
 

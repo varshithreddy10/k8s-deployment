@@ -144,7 +144,7 @@ jobs:
 
       - name: Update Kubernetes Deployment Manifest
         run: |
-          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/cartapi:${{ github.run_id }}|" kubernetes/cartapi/deployment.yml
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/cartapi:${{ github.run_id }}|" kubernetes-manifest-ymls/cartapi/deployment.yml
 
       - name: Commit and Push Changes
         run: |
@@ -152,7 +152,7 @@ jobs:
 
           git config --global user.name "github-actions"
 
-          git add kubernetes/cartapi/deployment.yml
+          git add kubernetes-manifest-ymls/cartapi/deployment.yml
 
           git commit -m "[CI]: Update cartapi image tag" || echo "No changes to commit"
 
