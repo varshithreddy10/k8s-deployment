@@ -23,7 +23,7 @@ spec:
 
         - name: customerapi
 
-          image: varshithreddy144/customerapi:25619680896
+          image: varshithreddy144/customerapi:25619736794
 
           ports:
             - containerPort: 7003
