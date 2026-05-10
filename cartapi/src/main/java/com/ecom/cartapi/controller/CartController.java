@@ -16,6 +16,13 @@ public class CartController
     @Autowired
     private CartService cartservice;
 
+    @GetMapping("/check/cartapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "cartapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
+
     @PostMapping("/carts/products/{productId}/quantity/{quantity}/customer/{customerId}")
     public ResponseEntity<CartDto> addProductToCart(@PathVariable Long productId , @PathVariable Integer quantity , @PathVariable Long customerId)
     {

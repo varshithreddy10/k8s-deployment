@@ -159,6 +159,167 @@ jobs:
 
           git push origin main
 
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\.github\workflows\orderapi-ci.yml ================
+name: orderapi-ci
+
+on:
+  push:
+    branches:
+      - main
+
+    paths:
+      - 'orderapi/**'
+      - '.github/workflows/orderapi-ci.yml'
+
+
+jobs:
+
+  code-quality:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fake Code Quality Check
+        run: |
+          echo "Checking code quality..."
+          sleep 15
+          echo "Code quality check completed"
+
+
+  docker:
+
+    runs-on: ubuntu-latest
+
+    needs: code-quality
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./orderapi
+          file: ./orderapi/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/orderapi:${{ github.run_id }}
+
+
+  container-test:
+
+    runs-on: ubuntu-latest
+
+    needs: docker
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Pull Docker Image
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/orderapi:${{ github.run_id }}
+
+      - name: Run Docker Container
+        run: |
+          docker run -d \
+            --name orderapi-container \
+            -p 7005:7005 \
+            ${{ secrets.DOCKER_USERNAME }}/orderapi:${{ github.run_id }}
+
+      - name: Wait for Application Startup
+        run: |
+          echo "Waiting for Spring Boot application..."
+
+          for i in {1..12}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:7005/api/orders/check/orderapi || true)
+
+            if [ "$STATUS" = "201" ]; then
+              echo "Application started successfully"
+              exit 0
+            fi
+
+            echo "Application not ready yet..."
+            sleep 5
+          done
+
+          echo "Application failed to start"
+
+          docker logs orderapi-container
+
+          exit 1
+
+      - name: Validate API Response
+        run: |
+          RESPONSE=$(curl -s http://localhost:7005/api/orders/check/orderapi)
+
+          echo "Response: $RESPONSE"
+
+          if [ "$RESPONSE" = "orderapi" ]; then
+            echo "Container validation successful"
+          else
+            echo "Container validation failed"
+
+            docker logs orderapi-container
+
+            exit 1
+          fi
+
+      - name: Stop Container
+        run: |
+          docker stop orderapi-container
+          docker rm orderapi-container
+
+
+  update-k8s:
+
+    runs-on: ubuntu-latest
+
+    needs: container-test
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Update Kubernetes Deployment Manifest
+        run: |
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/orderapi:${{ github.run_id }}|" kubernetes/orderapi/deployment.yml
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.email "github-actions@github.com"
+
+          git config --global user.name "github-actions"
+
+          git add kubernetes/orderapi/deployment.yml
+
+          git commit -m "[CI]: Update orderapi image tag" || echo "No changes to commit"
+
+          git push origin main
+
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\cartapi\pom.xml ================
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -399,6 +560,13 @@ public class CartController
 {
     @Autowired
     private CartService cartservice;
+
+    @GetMapping("/check/cartapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "cartapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
 
     @PostMapping("/carts/products/{productId}/quantity/{quantity}/customer/{customerId}")
     public ResponseEntity<CartDto> addProductToCart(@PathVariable Long productId , @PathVariable Integer quantity , @PathVariable Long customerId)
@@ -2129,6 +2297,76 @@ spec:
           ports:
             - containerPort: 7003
 
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes\orderapi\deployment.yml ================
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: orderapi
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: orderapi
+
+  template:
+
+    metadata:
+      labels:
+        app: orderapi
+
+    spec:
+
+      containers:
+
+        - name: orderapi
+
+          image: varshithreddy144/orderapi:25621639520
+
+          ports:
+            - containerPort: 7005
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\orderapi\Dockerfile ================
+# ==========================================
+# Stage 1 â†’ Build Stage
+# ==========================================
+
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy Maven configuration
+COPY pom.xml .
+
+# Copy source code
+COPY src ./src
+
+# Build Spring Boot application
+RUN mvn clean package -DskipTests
+
+
+# ==========================================
+# Stage 2 â†’ Runtime Stage
+# ==========================================
+
+FROM eclipse-temurin:17-jdk
+
+# Set working directory
+WORKDIR /app
+
+# Copy generated JAR file from builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
+# Expose application port
+EXPOSE 7005
+
+# Start Spring Boot application
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\orderapi\pom.xml ================
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -2175,11 +2413,13 @@ spec:
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
+
 		<dependency>
-			<groupId>com.mysql</groupId>
-			<artifactId>mysql-connector-j</artifactId>
-			<scope>runtime</scope>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
 		</dependency>
+
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
@@ -2361,18 +2601,19 @@ import java.util.List;
 @RequestMapping("/api/orders")
 public class OrderController
 {
+    // 1 time
     @Autowired
     private OrderService orderservice;
 
     @Autowired
     private OrderRepository orderrepo;
 
-//    @PostMapping("/createorder")
-//    public ResponseEntity<PurchaseOrderResponseDto> createOrder(@RequestBody PurchaseOrderRequestDto purchaseorder)
-//    {
-//        PurchaseOrderResponseDto purchaseresponse = orderservice.createOrderServ(purchaseorder);
-//        return new ResponseEntity<>(purchaseresponse , HttpStatus.CREATED);
-//    }
+    @GetMapping("/check/orderapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "orderapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
 
     @GetMapping("/getall/orders")
     public  ResponseEntity<List<OrderResponseDto>> getAllOrders()
