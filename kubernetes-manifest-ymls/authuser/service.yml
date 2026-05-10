@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: authuser-service
+  namespace: test
+
+spec:
+  selector:
+    app: authuser
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7001
+
+  type: ClusterIP
