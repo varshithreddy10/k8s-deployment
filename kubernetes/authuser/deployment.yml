@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: authuser
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: authuser
+
+  template:
+
+    metadata:
+      labels:
+        app: authuser
+
+    spec:
+
+      containers:
+
+        - name: authuser
+
+          image: varshithreddy144/authuser:latest
+
+          ports:
+            - containerPort: 5000

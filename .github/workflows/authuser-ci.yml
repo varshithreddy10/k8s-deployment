@@ -1,0 +1,161 @@
+name: authuser-ci
+
+on:
+  push:
+    branches:
+      - main
+
+    paths:
+      - 'authuser/**'
+      - '.github/workflows/authuser-ci.yml'
+
+
+jobs:
+
+  code-quality:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fake Code Quality Check
+        run: |
+          echo "Checking code quality..."
+          sleep 15
+          echo "Code quality check completed"
+
+
+  docker:
+
+    runs-on: ubuntu-latest
+
+    needs: code-quality
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./authuser
+          file: ./authuser/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/authuser:${{ github.run_id }}
+
+
+  container-test:
+
+    runs-on: ubuntu-latest
+
+    needs: docker
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Pull Docker Image
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/authuser:${{ github.run_id }}
+
+      - name: Run Docker Container
+        run: |
+          docker run -d \
+            --name authuser-container \
+            -e SPRING_PROFILES_ACTIVE=ci \
+            -p 5000:5000 \
+            ${{ secrets.DOCKER_USERNAME }}/authuser:${{ github.run_id }}
+
+      - name: Wait for Application Startup
+        run: |
+          echo "Waiting for Spring Boot application..."
+
+          for i in {1..12}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/api/auth/check/authuser || true)
+
+            if [ "$STATUS" = "201" ]; then
+              echo "Application started successfully"
+              exit 0
+            fi
+
+            echo "Application not ready yet..."
+            sleep 5
+          done
+
+          echo "Application failed to start"
+
+          docker logs authuser-container
+
+          exit 1
+
+      - name: Validate API Response
+        run: |
+          RESPONSE=$(curl -s http://localhost:5000/api/auth/check/authuser)
+
+          echo "Response: $RESPONSE"
+
+          if [ "$RESPONSE" = "authuser" ]; then
+            echo "Container validation successful"
+          else
+            echo "Container validation failed"
+
+            docker logs authuser-container
+
+            exit 1
+          fi
+
+      - name: Stop Container
+        if: always()
+        run: |
+          docker stop authuser-container || true
+          docker rm authuser-container || true
+
+
+  update-k8s:
+
+    runs-on: ubuntu-latest
+
+    needs: container-test
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Update Kubernetes Deployment Manifest
+        run: |
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/authuser:${{ github.run_id }}|" kubernetes/authuser/deployment.yml
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.email "github-actions@github.com"
+
+          git config --global user.name "github-actions"
+
+          git add kubernetes/authuser/deployment.yml
+
+          git commit -m "[CI]: Update authuser image tag" || echo "No changes to commit"
+
+          git push origin main

@@ -28,6 +28,13 @@ public class AuthController
 
 
 
+    @GetMapping("/check/authuser")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "authuser";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
+
     @PostMapping("/signup")
     public ResponseEntity<UserDto> signUp(@RequestBody SignUpDto signUpDto)
     {
