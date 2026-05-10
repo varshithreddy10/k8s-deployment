@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: customerapi
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: customerapi
+
+  template:
+
+    metadata:
+      labels:
+        app: customerapi
+
+    spec:
+
+      containers:
+
+        - name: customerapi
+
+          image: varshithreddy144/customerapi:latest
+
+          ports:
+            - containerPort: 7003
