@@ -4888,7 +4888,7 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 7001
+      targetPort: 5000
 
   type: ClusterIP
 
@@ -5047,6 +5047,102 @@ spec:
 
   type: ClusterIP
 
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\ingress\ingress.yml ================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: ecommerce-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Removed: rewrite-target and use-regex â€” they were stripping the path
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+    - http:
+        paths:
+
+          # =========================
+          # ADMIN API  â†’  /api/admin/**
+          # =========================
+          - path: /api/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: adminapi-service
+                port:
+                  number: 80
+
+          # =========================
+          # AUTH USER API  â†’  /api/auth/**
+          # =========================
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: authuser-service
+                port:
+                  number: 80
+
+          # =========================
+          # CART API  â†’  /api/carts/**  (plural!)
+          # =========================
+          - path: /api/carts
+            pathType: Prefix
+            backend:
+              service:
+                name: cartapi-service
+                port:
+                  number: 80
+
+          # =========================
+          # CUSTOMER API  â†’  /api/customer/**
+          # =========================
+          - path: /api/customer
+            pathType: Prefix
+            backend:
+              service:
+                name: customerapi-service
+                port:
+                  number: 80
+
+          # =========================
+          # ADDRESS (also customerapi!)  â†’  /api/address/**
+          # cartapi and orderapi feign clients both call this
+          # =========================
+          - path: /api/address
+            pathType: Prefix
+            backend:
+              service:
+                name: customerapi-service
+                port:
+                  number: 80
+
+          # =========================
+          # ORDER API  â†’  /api/orders/**  (plural!)
+          # =========================
+          - path: /api/orders
+            pathType: Prefix
+            backend:
+              service:
+                name: orderapi-service
+                port:
+                  number: 80
+
+          # =========================
+          # PRODUCT API  â†’  /api/products/**  (plural!)
+          # =========================
+          - path: /api/products
+            pathType: Prefix
+            backend:
+              service:
+                name: productapi-service
+                port:
+                  number: 80
+
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\orderapi\deployment.yml ================
 apiVersion: apps/v1
 
@@ -5199,7 +5295,7 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 7006
+      targetPort: 7001
 
   type: ClusterIP
 
