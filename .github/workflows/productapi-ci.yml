@@ -6,7 +6,7 @@ on:
       - main
 
     paths:
-      - 'api/**'
+      - 'productapi/**'
       - '.github/workflows/productapi-ci.yml'
 
 
@@ -55,8 +55,8 @@ jobs:
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
         with:
-          context: ./api
-          file: ./api/Dockerfile
+          context: ./productapi
+          file: ./productapi/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/productapi:${{ github.run_id }}
 
