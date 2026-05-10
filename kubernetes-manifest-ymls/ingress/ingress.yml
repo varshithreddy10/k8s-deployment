@@ -4,11 +4,9 @@ kind: Ingress
 metadata:
   name: ecommerce-ingress
   namespace: default
-
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Removed: rewrite-target and use-regex — they were stripping the path
 
 spec:
   ingressClassName: nginx
@@ -18,11 +16,10 @@ spec:
         paths:
 
           # =========================
-          # ADMIN API
+          # ADMIN API  →  /api/admin/**
           # =========================
-          - path: /admin(/|$)(.*)
-            pathType: ImplementationSpecific
-
+          - path: /api/admin
+            pathType: Prefix
             backend:
               service:
                 name: adminapi-service
@@ -30,11 +27,10 @@ spec:
                   number: 80
 
           # =========================
-          # AUTH USER API
+          # AUTH USER API  →  /api/auth/**
           # =========================
-          - path: /auth(/|$)(.*)
-            pathType: ImplementationSpecific
-
+          - path: /api/auth
+            pathType: Prefix
             backend:
               service:
                 name: authuser-service
@@ -42,11 +38,10 @@ spec:
                   number: 80
 
           # =========================
-          # CART API
+          # CART API  →  /api/carts/**  (plural!)
           # =========================
-          - path: /cart(/|$)(.*)
-            pathType: ImplementationSpecific
-
+          - path: /api/carts
+            pathType: Prefix
             backend:
               service:
                 name: cartapi-service
@@ -54,14 +49,10 @@ spec:
                   number: 80
 
           # =========================
-          # CUSTOMER API
-          # Handles:
-          # /api/customer/*
-          # /api/address/*
+          # CUSTOMER API  →  /api/customer/**
           # =========================
-          - path: /customer(/|$)(.*)
-            pathType: ImplementationSpecific
-
+          - path: /api/customer
+            pathType: Prefix
             backend:
               service:
                 name: customerapi-service
@@ -69,11 +60,22 @@ spec:
                   number: 80
 
           # =========================
-          # ORDER API
+          # ADDRESS (also customerapi!)  →  /api/address/**
+          # cartapi and orderapi feign clients both call this
           # =========================
-          - path: /order(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /api/address
+            pathType: Prefix
+            backend:
+              service:
+                name: customerapi-service
+                port:
+                  number: 80
 
+          # =========================
+          # ORDER API  →  /api/orders/**  (plural!)
+          # =========================
+          - path: /api/orders
+            pathType: Prefix
             backend:
               service:
                 name: orderapi-service
@@ -81,11 +83,10 @@ spec:
                   number: 80
 
           # =========================
-          # PRODUCT API
+          # PRODUCT API  →  /api/products/**  (plural!)
           # =========================
-          - path: /product(/|$)(.*)
-            pathType: ImplementationSpecific
-
+          - path: /api/products
+            pathType: Prefix
             backend:
               service:
                 name: productapi-service
