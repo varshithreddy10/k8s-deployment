@@ -1241,7 +1241,7 @@ import java.util.List;
 @RequestMapping("/api/admin")
 public class CategoryController
 {
-    // . . . . . . . . 1 time
+    // . . . . . . . . 1 time 2 time
     @Autowired
     private CategoryService categoryservice;
 
@@ -4745,7 +4745,7 @@ metadata:
   name: adminapi
 
 spec:
-  replicas: 2
+  replicas: 1
 
   selector:
     matchLabels:
@@ -4763,10 +4763,56 @@ spec:
 
         - name: adminapi
 
-          image: varshithreddy144/adminapi:25627359962
+          image: varshithreddy144/adminapi:25631970183
 
           ports:
             - containerPort: 7002
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\adminapi\hpa.yml ================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: adminapi-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: adminapi
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 1
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\adminapi\service.yml ================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: adminapi-service
+  namespace: default
+
+spec:
+  selector:
+    app: adminapi
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7002
+
+  type: ClusterIP
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\authuser\deployment.yml ================
 apiVersion: apps/v1
@@ -4795,10 +4841,56 @@ spec:
 
         - name: authuser
 
-          image: varshithreddy144/authuser:25627951123
+          image: varshithreddy144/authuser:25628992796
 
           ports:
             - containerPort: 5000
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\authuser\hpa.yml ================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: authuser-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: authuser
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 1
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\authuser\service.yml ================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: authuser-service
+  namespace: default
+
+spec:
+  selector:
+    app: authuser
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7001
+
+  type: ClusterIP
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\cartapi\deployment.yml ================
 apiVersion: apps/v1
@@ -4809,7 +4901,7 @@ metadata:
   name: cartapi
 
 spec:
-  replicas: 2
+  replicas: 1
 
   selector:
     matchLabels:
@@ -4827,10 +4919,56 @@ spec:
 
         - name: cartapi
 
-          image: varshithreddy144/cartapi:25622352390
+          image: varshithreddy144/cartapi:25628992789
 
           ports:
             - containerPort: 7004
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\cartapi\hpa.yml ================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: cartapi-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cartapi
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 1
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\cartapi\service.yml ================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: cartapi-service
+  namespace: default
+
+spec:
+  selector:
+    app: cartapi
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7004
+
+  type: ClusterIP
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\customerapi\deployment.yml ================
 apiVersion: apps/v1
@@ -4858,10 +4996,56 @@ spec:
 
         - name: customerapi
 
-          image: varshithreddy144/customerapi:25628843548
+          image: varshithreddy144/customerapi:25628992786
 
           ports:
             - containerPort: 7003
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\customerapi\hpa.yml ================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: customerapi-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: customerapi
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 1
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\customerapi\service.yml ================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: customerapi-service
+  namespace: default
+
+spec:
+  selector:
+    app: customerapi
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7003
+
+  type: ClusterIP
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\orderapi\deployment.yml ================
 apiVersion: apps/v1
@@ -4890,10 +5074,56 @@ spec:
 
         - name: orderapi
 
-          image: varshithreddy144/orderapi:25621639520
+          image: varshithreddy144/orderapi:25628992781
 
           ports:
             - containerPort: 7005
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\orderapi\hpa.yml ================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: orderapi-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: orderapi
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\orderapi\service.yml ================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: orderapi-service
+  namespace: default
+
+spec:
+  selector:
+    app: orderapi
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7005
+
+  type: ClusterIP
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\productapi\deployment.yml ================
 apiVersion: apps/v1
@@ -4922,10 +5152,56 @@ spec:
 
         - name: productapi
 
-          image: varshithreddy144/productapi:25628540988
+          image: varshithreddy144/productapi:25628992782
 
           ports:
             - containerPort: 7001
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\productapi\hpa.yml ================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: productapi-hpa
+  namespace: default
+
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: productapi
+
+  minReplicas: 1
+  maxReplicas: 5
+
+  metrics:
+    - type: Resource
+
+      resource:
+        name: cpu
+
+        target:
+          type: Utilization
+          averageUtilization: 1
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes-manifest-ymls\productapi\service.yml ================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: productapi-service
+  namespace: default
+
+spec:
+  selector:
+    app: productapi
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 7006
+
+  type: ClusterIP
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\orderapi\Dockerfile ================
 # ==========================================
