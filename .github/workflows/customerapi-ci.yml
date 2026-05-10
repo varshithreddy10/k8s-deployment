@@ -16,6 +16,8 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    timeout-minutes: 10
+
     steps:
 
       - name: Checkout Code
@@ -27,11 +29,14 @@ jobs:
           sleep 15
           echo "Code quality check completed"
 
+
   docker:
 
     runs-on: ubuntu-latest
 
     needs: code-quality
+
+    timeout-minutes: 15
 
     steps:
 
@@ -55,11 +60,80 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}
 
-  update-k8s:
+
+  container-test:
 
     runs-on: ubuntu-latest
 
     needs: docker
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Pull Docker Image
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}
+
+      - name: Run Docker Container
+        run: |
+          docker run -d \
+            --name customerapi-container \
+            -p 7003:7003 \
+            ${{ secrets.DOCKER_USERNAME }}/customerapi:${{ github.run_id }}
+
+      - name: Wait for Application Startup
+        run: |
+          echo "Waiting for Spring Boot application..."
+
+          for i in {1..12}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:7003/api/customer/check/customerapi || true)
+
+            if [ "$STATUS" = "201" ]; then
+              echo "Application started successfully"
+              exit 0
+            fi
+
+            echo "Application not ready yet..."
+            sleep 5
+          done
+
+          echo "Application failed to start"
+
+          docker logs customerapi-container
+
+          exit 1
+
+      - name: Validate API Response
+        run: |
+          RESPONSE=$(curl -s http://localhost:7003/api/customer/check/customerapi)
+
+          echo "Response: $RESPONSE"
+
+          if [ "$RESPONSE" = "customerapi" ]; then
+            echo "Container validation successful"
+          else
+            echo "Container validation failed"
+
+            docker logs customerapi-container
+
+            exit 1
+          fi
+
+      - name: Stop Container
+        run: |
+          docker stop customerapi-container
+          docker rm customerapi-container
+
+
+  update-k8s:
+
+    runs-on: ubuntu-latest
+
+    needs: container-test
+
+    timeout-minutes: 10
 
     steps:
 
@@ -75,6 +149,7 @@ jobs:
       - name: Commit and Push Changes
         run: |
           git config --global user.email "github-actions@github.com"
+
           git config --global user.name "github-actions"
 
           git add kubernetes/customerapi/deployment.yml

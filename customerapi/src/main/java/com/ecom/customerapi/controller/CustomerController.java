@@ -21,6 +21,13 @@ public class CustomerController
     @Autowired
     private CustomerRepository customerrepo;
 
+    @GetMapping("/check/customerapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "customerapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
+
     @PostMapping("/add/customer")
     public ResponseEntity<CustomerDto> addNewCustomer(@RequestBody CustomerDto customerdto)
     {
