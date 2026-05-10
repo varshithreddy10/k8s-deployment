@@ -155,5 +155,7 @@ jobs:
           git add kubernetes-manifest-ymls/orderapi/deployment.yml
 
           git commit -m "[CI]: Update orderapi image tag" || echo "No changes to commit"
+          
+          git pull --rebase origin main
 
           git push origin main

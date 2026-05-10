@@ -156,5 +156,7 @@ jobs:
           git add kubernetes-manifest-ymls/productapi/deployment.yml
 
           git commit -m "[CI]: Update productapi image tag" || echo "No changes to commit"
+          
+          git pull --rebase origin main
 
           git push origin main

@@ -156,5 +156,7 @@ jobs:
           git add kubernetes-manifest-ymls/adminapi/deployment.yml
 
           git commit -m "[CI]: Update adminapi image tag" || echo "No changes to commit"
+          
+          git pull --rebase origin main
 
           git push origin main

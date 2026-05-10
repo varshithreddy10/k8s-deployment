@@ -157,5 +157,7 @@ jobs:
           git add kubernetes-manifest-ymls/authuser/deployment.yml
 
           git commit -m "[CI]: Update authuser image tag" || echo "No changes to commit"
+          
+          git pull --rebase origin main
 
           git push origin main
