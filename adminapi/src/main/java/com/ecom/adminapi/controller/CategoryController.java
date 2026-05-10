@@ -18,6 +18,14 @@ public class CategoryController
     @Autowired
     private CategoryService categoryservice;
 
+
+    @GetMapping("/check/adminapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "adminapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
+
     @PostMapping("/add/category")
     @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_CREATE')")
     public ResponseEntity<CategoryDto> addCategory(@RequestBody CategoryDto categorydto)

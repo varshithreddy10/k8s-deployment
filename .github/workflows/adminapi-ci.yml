@@ -112,7 +112,7 @@ jobs:
           echo "Response: $RESPONSE"
 
           if [ "$RESPONSE" = "adminapi" ]; then
-            echo "Container validation successful"
+            echo "Container validation successful adminapi==adminapi"
           else
             echo "Container validation failed"
 
