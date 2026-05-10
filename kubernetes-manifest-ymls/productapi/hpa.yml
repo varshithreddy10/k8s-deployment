@@ -9,7 +9,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: productapi-deployment
+    name: productapi
 
   minReplicas: 1
   maxReplicas: 5

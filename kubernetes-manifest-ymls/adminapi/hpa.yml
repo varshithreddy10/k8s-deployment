@@ -9,7 +9,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: adminapi-deployment
+    name: adminapi
 
   minReplicas: 1
   maxReplicas: 5
