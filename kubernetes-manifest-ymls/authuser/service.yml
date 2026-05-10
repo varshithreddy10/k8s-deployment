@@ -3,7 +3,7 @@ kind: Service
 
 metadata:
   name: authuser-service
-  namespace: test
+  namespace: default
 
 spec:
   selector:

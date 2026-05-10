@@ -3,7 +3,7 @@ kind: Service
 
 metadata:
   name: productapi-service
-  namespace: test
+  namespace: default
 
 spec:
   selector:

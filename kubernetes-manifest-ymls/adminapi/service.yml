@@ -3,7 +3,7 @@ kind: Service
 
 metadata:
   name: adminapi-service
-  namespace: test
+  namespace: default
 
 spec:
   selector:

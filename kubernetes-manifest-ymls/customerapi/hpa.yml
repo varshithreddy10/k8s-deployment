@@ -3,7 +3,7 @@ kind: HorizontalPodAutoscaler
 
 metadata:
   name: customerapi-hpa
-  namespace: test
+  namespace: default
 
 spec:
   scaleTargetRef:
