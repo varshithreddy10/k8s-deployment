@@ -148,9 +148,9 @@ jobs:
 
       - name: Commit and Push Changes
         run: |
-          git config --global user.email "github-actions@github.com"
+          git config --global user.email "varshithreddy1009@github.com"
 
-          git config --global user.name "github-actions"
+          git config --global user.name "varshithreddy10"
 
           git add kubernetes/customerapi/deployment.yml
 
