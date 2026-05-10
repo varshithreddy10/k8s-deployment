@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: productapi
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: productapi
+
+  template:
+
+    metadata:
+      labels:
+        app: productapi
+
+    spec:
+
+      containers:
+
+        - name: productapi
+
+          image: varshithreddy144/productapi:latest
+
+          ports:
+            - containerPort: 7001

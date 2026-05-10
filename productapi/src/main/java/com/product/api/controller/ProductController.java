@@ -32,6 +32,13 @@ public class ProductController
     @Autowired
     private ModelMapper modelmapper;
 
+    @GetMapping("/check/productapi")
+    public ResponseEntity<String> checkapi()
+    {
+        String message = "productapi";
+        return new ResponseEntity<>(message , HttpStatus.CREATED);
+    }
+
     @GetMapping("/get/allproducts")
     //@PreAuthorize("hasRole('ADMIN') and hasAuthority('PRODUCT_VIEW')") . . .
     public ResponseEntity<List<ProductDto>> getAllProducts()
