@@ -24,7 +24,7 @@ spec:
 
         - name: authuser
 
-          image: varshithreddy144/authuser:25627951123
+          image: varshithreddy144/authuser:25628992796
 
           ports:
             - containerPort: 5000
