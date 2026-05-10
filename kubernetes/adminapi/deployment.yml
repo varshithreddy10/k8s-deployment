@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: adminapi
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: adminapi
+
+  template:
+
+    metadata:
+      labels:
+        app: adminapi
+
+    spec:
+
+      containers:
+
+        - name: adminapi
+
+          image: varshithreddy144/adminapi:latest
+
+          ports:
+            - containerPort: 7002

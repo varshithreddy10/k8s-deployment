@@ -1,4 +1,165 @@
-﻿================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\.github\workflows\customerapi-ci.yml ================
+﻿================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\.github\workflows\cartapi-ci.yml ================
+name: cartapi-ci
+
+on:
+  push:
+    branches:
+      - main
+
+    paths:
+      - 'cartapi/**'
+      - '.github/workflows/cartapi-ci.yml'
+
+
+jobs:
+
+  code-quality:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fake Code Quality Check
+        run: |
+          echo "Checking code quality..."
+          sleep 15
+          echo "Code quality check completed"
+
+
+  docker:
+
+    runs-on: ubuntu-latest
+
+    needs: code-quality
+
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./cartapi
+          file: ./cartapi/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/cartapi:${{ github.run_id }}
+
+
+  container-test:
+
+    runs-on: ubuntu-latest
+
+    needs: docker
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Pull Docker Image
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/cartapi:${{ github.run_id }}
+
+      - name: Run Docker Container
+        run: |
+          docker run -d \
+            --name cartapi-container \
+            -p 7004:7004 \
+            ${{ secrets.DOCKER_USERNAME }}/cartapi:${{ github.run_id }}
+
+      - name: Wait for Application Startup
+        run: |
+          echo "Waiting for Spring Boot application..."
+
+          for i in {1..12}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:7004/api/carts/check/cartapi || true)
+
+            if [ "$STATUS" = "201" ]; then
+              echo "Application started successfully"
+              exit 0
+            fi
+
+            echo "Application not ready yet..."
+            sleep 5
+          done
+
+          echo "Application failed to start"
+
+          docker logs cartapi-container
+
+          exit 1
+
+      - name: Validate API Response
+        run: |
+          RESPONSE=$(curl -s http://localhost:7004/api/carts/check/cartapi)
+
+          echo "Response: $RESPONSE"
+
+          if [ "$RESPONSE" = "cartapi" ]; then
+            echo "Container validation successful cartapi==cartapi"
+          else
+            echo "Container validation failed"
+
+            docker logs cartapi-container
+
+            exit 1
+          fi
+
+      - name: Stop Container
+        run: |
+          docker stop cartapi-container
+          docker rm cartapi-container
+
+
+  update-k8s:
+
+    runs-on: ubuntu-latest
+
+    needs: container-test
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Update Kubernetes Deployment Manifest
+        run: |
+          sed -i "s|image: .*|image: ${{ secrets.DOCKER_USERNAME }}/cartapi:${{ github.run_id }}|" kubernetes/cartapi/deployment.yml
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.email "github-actions@github.com"
+
+          git config --global user.name "github-actions"
+
+          git add kubernetes/cartapi/deployment.yml
+
+          git commit -m "[CI]: Update cartapi image tag" || echo "No changes to commit"
+
+          git push origin main
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\.github\workflows\customerapi-ci.yml ================
 name: customerapi-ci
 
 on:
@@ -320,6 +481,1785 @@ jobs:
 
           git push origin main
 
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\Dockerfile ================
+FROM eclipse-temurin:17-jdk
+
+WORKDIR /app
+
+COPY target/*.jar app.jar
+
+EXPOSE 7002
+
+ENTRYPOINT ["java","-jar","app.jar"]
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\pom.xml ================
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.1</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.ecom</groupId>
+	<artifactId>adminapi</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>adminapi</name>
+	<description>Demo project for Spring Boot</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>17</java.version>
+		<spring-cloud.version>2025.1.0</spring-cloud.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.modelmapper</groupId>
+			<artifactId>modelmapper</artifactId>
+			<version>3.2.2</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.8.13</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-micrometer-tracing-brave</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-zipkin</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-brave</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-micrometer-tracing-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-zipkin-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+
+
+
+	</dependencies>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\.mvn\wrapper\maven-wrapper.properties ================
+wrapperVersion=3.3.4
+distributionType=only-script
+distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.12/apache-maven-3.9.12-bin.zip
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\AdminapiApplication.java ================
+package com.ecom.adminapi;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+
+@SpringBootApplication
+@EnableDiscoveryClient
+@EnableFeignClients
+public class AdminapiApplication {
+
+	public static void main(String[] args)
+	{
+		SpringApplication.run(AdminapiApplication.class, args);
+	}
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\config\MapperConfig.java ================
+package com.ecom.adminapi.config;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class MapperConfig
+{
+    // .
+    @Bean
+    public ModelMapper getMapper()
+    {
+        return new ModelMapper();
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\controller\CategoryController.java ================
+package com.ecom.adminapi.controller;
+
+import com.ecom.adminapi.dto.CategoryDto;
+import com.ecom.adminapi.service.CategoryService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/admin")
+public class CategoryController
+{
+    // . . . . . . . .
+    @Autowired
+    private CategoryService categoryservice;
+
+    @PostMapping("/add/category")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_CREATE')")
+    public ResponseEntity<CategoryDto> addCategory(@RequestBody CategoryDto categorydto)
+    {
+        CategoryDto categorydtosaved = categoryservice.createCategory(categorydto);
+        return new ResponseEntity<>(categorydtosaved , HttpStatus.CREATED);
+    }
+
+    @GetMapping("/get/all/categories")
+    @PreAuthorize("hasAnyRole('SELLER','USER','ADMIN') and hasAuthority('CATEGORY_VIEW')")
+    public ResponseEntity<List<CategoryDto>> getAllCategories()
+    {
+        List<CategoryDto> allcategorydtos = categoryservice.getallCategory();
+        return new ResponseEntity<>(allcategorydtos , HttpStatus.FOUND);
+    }
+
+    @GetMapping("/get/byid/{categoryId}")
+    @PreAuthorize("hasAnyRole('SELLER','USER','ADMIN') and hasAuthority('CATEGORY_VIEW')")
+    public ResponseEntity<CategoryDto> getCategorybyId(@PathVariable Long categoryId)
+    {
+        CategoryDto categorydto = categoryservice.getCategoryByIdserv(categoryId);
+        return new ResponseEntity<>(categorydto , HttpStatus.FOUND);
+    }
+
+    @DeleteMapping("/delete/{categoryId}")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_DELETE')")
+    public ResponseEntity<String> deleteCategory(@PathVariable Long categoryId)
+    {
+        String message = categoryservice.deleteCategorybyId(categoryId);
+        return new ResponseEntity<>(message , HttpStatus.GONE);
+    }
+
+    @PutMapping("/update/{categoryId}")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_UPDATE')")
+    public ResponseEntity<CategoryDto> updateCategory(@PathVariable Long categoryId , @RequestBody CategoryDto categorydto)
+    {
+        CategoryDto categorydtoupdated = categoryservice.updateCategoryserv(categorydto , categoryId);
+        return new ResponseEntity<>(categorydtoupdated , HttpStatus.OK);
+    }
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\dto\CategoryDto.java ================
+package com.ecom.adminapi.dto;
+
+import lombok.Data;
+
+@Data
+public class CategoryDto
+{
+    private Long categoryId;
+    private String categoryName;
+
+    private String active;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\entity\ProductCategory.java ================
+package com.ecom.adminapi.entity;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "productcategory")
+
+public class ProductCategory
+{
+    //ProductCategory
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long categoryId;
+
+    private String categoryName;
+
+    private String active;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\exception\CompileTimeException.java ================
+package com.ecom.adminapi.exception;
+
+public class CompileTimeException extends Exception
+{
+    CompileTimeException(String message)
+    {
+        super(message);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\exception\GenericApiException.java ================
+package com.ecom.adminapi.exception;
+
+public class GenericApiException extends RuntimeException
+{
+    GenericApiException(String message)
+    {
+        super(message);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\exception\GlobalExceptionHandler.java ================
+package com.ecom.adminapi.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler
+{
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<String> myResourceNotFoundException(ResourceNotFoundException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(GenericApiException.class)
+    public ResponseEntity<String> myGenericApiException(GenericApiException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(CompileTimeException.class)
+    public ResponseEntity<String> myCompileTimeException(CompileTimeException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<String> myValidationError(MethodArgumentNotValidException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> myException(Exception e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\exception\ResourceNotFoundException.java ================
+package com.ecom.adminapi.exception;
+
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+
+public class ResourceNotFoundException extends RuntimeException
+{
+    String resourceName;
+    String field;
+    String fieldName;
+    Integer fieldId;
+
+    public ResourceNotFoundException() {
+    }
+
+    public ResourceNotFoundException(String resourceName, String field, String fieldName) {
+        super(String.format("%s not found with %s: %s", resourceName, field, fieldName));
+        this.resourceName = resourceName;
+        this.field = field;
+        this.fieldName = fieldName;
+    }
+
+    public ResourceNotFoundException(String resourceName, String field, Integer fieldId) {
+        super(String.format("%s not found with %s: %d", resourceName, field, fieldId));
+        this.resourceName = resourceName;
+        this.field = field;
+        this.fieldId = fieldId;
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\repository\CategoryRepository.java ================
+package com.ecom.adminapi.repository;
+
+
+import com.ecom.adminapi.entity.ProductCategory;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface CategoryRepository extends JpaRepository<ProductCategory, Long>
+{
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\service\CategoryService.java ================
+package com.ecom.adminapi.service;
+
+import com.ecom.adminapi.dto.CategoryDto;
+
+import java.util.List;
+
+public interface CategoryService 
+{
+    // hello this is test
+    
+    public CategoryDto createCategory(CategoryDto categorydto);
+
+    public List<CategoryDto> getallCategory();
+
+    CategoryDto getCategoryByIdserv(Long categoryId);
+
+    String deleteCategorybyId(Long categoryId);
+
+    CategoryDto updateCategoryserv(CategoryDto categorydto , Long categoryId);
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\service\CategoryServiceImpl.java ================
+package com.ecom.adminapi.service;
+
+import com.ecom.adminapi.dto.CategoryDto;
+import com.ecom.adminapi.entity.ProductCategory;
+import com.ecom.adminapi.exception.ResourceNotFoundException;
+import com.ecom.adminapi.repository.CategoryRepository;
+import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class CategoryServiceImpl implements CategoryService
+{
+   @Autowired
+   private ModelMapper modelmapper;
+
+   @Autowired
+   private CategoryRepository catrepo;
+
+
+    @Override
+    public CategoryDto createCategory(CategoryDto categorydto)
+    {
+        //1.check if category is already present or not by using name
+        //2.convert categorydto to entity and save in repo
+        //3.convert savedcategoryentity to dto and return
+
+        ProductCategory categoryentity = modelmapper.map(categorydto , ProductCategory.class);
+        ProductCategory savedcaterory = catrepo.save(categoryentity);
+
+        return modelmapper.map(savedcaterory , CategoryDto.class);
+    }
+
+    @Override
+    public List<CategoryDto> getallCategory()
+    {
+        List<ProductCategory> allcategoryentity = catrepo.findAll();
+        List<CategoryDto> allcategorydtos=allcategoryentity.stream()
+                .map(individualCategoryentity -> modelmapper.map(individualCategoryentity , CategoryDto.class))
+                .toList();
+        return allcategorydtos;
+    }
+
+    @Override
+    public CategoryDto getCategoryByIdserv(Long categoryId)
+    {
+        /*
+            1.check if category exists or not with id if not throw a exception
+            2.if present fetch and return
+         */
+
+        ProductCategory categoryentity = catrepo.findById(categoryId)
+                .orElseThrow(()-> new ResourceNotFoundException("category","categoryId",""+categoryId));
+
+        CategoryDto categorydto = modelmapper.map(categoryentity , CategoryDto.class);
+        return categorydto;
+    }
+
+    @Override
+    public String deleteCategorybyId(Long categoryId)
+    {
+        ProductCategory categoryentity = catrepo.findById(categoryId)
+                .orElseThrow(()-> new ResourceNotFoundException("category","categoryId",""+categoryId));
+        catrepo.deleteById(categoryId);
+        return "success";
+    }
+
+    @Override
+    public CategoryDto updateCategoryserv(CategoryDto categorydto , Long categoryId)
+    {
+        ProductCategory categoryentity = catrepo.findById(categoryId)
+                .orElseThrow(()-> new ResourceNotFoundException("category","categoryId",""+categoryId));
+
+        categoryentity.setActive(categorydto.getActive());
+        categoryentity.setCategoryName(categorydto.getCategoryName());
+
+        ProductCategory savedcategoryentity = catrepo.save(categoryentity);
+
+        return modelmapper.map(savedcategoryentity , CategoryDto.class);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\springsecurity\config\SecurityConfig.java ================
+package com.ecom.adminapi.springsecurity.config;
+
+
+import com.ecom.adminapi.springsecurity.filter.GatewayAuthenticationFilter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Slf4j
+@EnableMethodSecurity(prePostEnabled = true)
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,GatewayAuthenticationFilter gatewayAuthenticationFilter) throws Exception 
+    {
+
+        http.csrf(csrf -> csrf.disable())
+            .sessionManagement(sm ->sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+
+                // âœ… Allow Swagger
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // Everything else requires authentication
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(gatewayAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\java\com\ecom\adminapi\springsecurity\filter\GatewayAuthenticationFilter.java ================
+package com.ecom.adminapi.springsecurity.filter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@Component
+public class GatewayAuthenticationFilter extends OncePerRequestFilter
+{
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException
+    {
+        log.info("NATALIE control entered doFilterInternal");
+
+        String userId = request.getHeader("X-User-Id");
+        log.info("NATALIE control entered doFilterInternal");
+
+        String authoritiesHeader = request.getHeader("X-User-Authorities");
+        log.info("NATALIE control entered doFilterInternal");
+
+        if (userId != null && authoritiesHeader != null)
+        {
+            /*
+            List<SimpleGrantedAuthority> authorities =
+                    Arrays.stream(authoritiesHeader.split(","))
+                            .map(String::trim)
+                            .map(SimpleGrantedAuthority::new)
+                            .toList();
+             */
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+
+            String[] authorityArray = authoritiesHeader.split(",");
+
+            for (String authority : authorityArray) {
+                String cleaned = authority.trim();
+                SimpleGrantedAuthority grantedAuthority =
+                        new SimpleGrantedAuthority(cleaned);
+
+                authorities.add(grantedAuthority);
+            }
+
+
+            log.info("NATALIE List<SimpleGrantedAuthority> authorities = "+authorities);
+
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+            log.info("NATALIE authentication object created is = "+authentication);
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            log.info("NATALIE execution of doFilterInternal is completed and authentiction object in the securitycontextholder is ="+SecurityContextHolder.getContext().getAuthentication());
+
+        }
+        filterChain.doFilter(request, response);
+
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\main\resources\application.properties ================
+spring.application.name=adminapi
+
+
+
+
+# ===============================
+# DATABASE (PostgreSQL - Docker)
+# ===============================
+spring.datasource.url=jdbc:postgresql://microservice-db:5432/microservicedb
+spring.datasource.username=user
+spring.datasource.password=password
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+server.port=7002
+
+eureka.instance.prefer-ip-address=true
+
+eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka
+
+
+# Tell Spring to respect forwarded headers from Gateway
+server.forward-headers-strategy=framework
+
+
+
+springdoc.api-docs.servers[0].url=http://15.206.241.176:8081
+springdoc.api-docs.servers[0].description=API Gateway
+
+
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\adminapi\src\test\java\com\ecom\adminapi\AdminapiApplicationTests.java ================
+package com.ecom.adminapi;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class AdminapiApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\Dockerfile ================
+FROM eclipse-temurin:17-jdk
+
+WORKDIR /app
+
+COPY target/*.jar app.jar
+
+EXPOSE 5000
+
+ENTRYPOINT ["java","-jar","app.jar"]
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\pom.xml ================
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.1</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.ecommerce</groupId>
+	<artifactId>authuser</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>authuser</name>
+	<description>Demo project for Spring Boot</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>17</java.version>
+		<spring-cloud.version>2025.1.0</spring-cloud.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+
+		<!-- BCrypt only -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-crypto</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+
+
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+
+		<!-- TESTING -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+
+
+		<!-- MODELMAPPER -->
+		<dependency>
+			<groupId>org.modelmapper</groupId>
+			<artifactId>modelmapper</artifactId>
+			<version>3.2.0</version>
+		</dependency>
+
+		<!-- TESTING -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+
+		<!-- JWT -->
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-api</artifactId>
+			<version>0.12.6</version>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+
+	</dependencies>
+
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\.mvn\wrapper\maven-wrapper.properties ================
+wrapperVersion=3.3.4
+distributionType=only-script
+distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.12/apache-maven-3.9.12-bin.zip
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\AuthuserApplication.java ================
+package com.ecommerce.authuser;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+
+@SpringBootApplication
+@EnableDiscoveryClient
+@EnableFeignClients
+public class AuthuserApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(AuthuserApplication.class, args);
+	}
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\config\GetModelMapper.java ================
+package com.ecommerce.authuser.config;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class GetModelMapper
+{
+    @Bean
+    public ModelMapper getmyModelMapper()
+    {
+        return new ModelMapper();
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\controller\AuthController.java ================
+package com.ecommerce.authuser.controller;
+
+
+
+import com.ecommerce.authuser.dto.LoginDto;
+import com.ecommerce.authuser.dto.LoginResponseDto;
+import com.ecommerce.authuser.dto.SignUpDto;
+import com.ecommerce.authuser.dto.UserDto;
+import com.ecommerce.authuser.springsecurity.securityservice.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+
+@Slf4j
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController
+{
+
+// . .
+    private final AuthService authService;
+
+
+
+    @PostMapping("/signup")
+    public ResponseEntity<UserDto> signUp(@RequestBody SignUpDto signUpDto)
+    {
+        log.info("control entered the signup in the authcontroller with the signupdto "+signUpDto);
+        UserDto userDto = authService.signUp(signUpDto);
+        log.info("execution of the signup is completed and the response is "+signUpDto);
+
+        return new ResponseEntity<>(userDto , HttpStatus.OK);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDto> login(@RequestBody LoginDto loginDto, HttpServletRequest request,
+                                                  HttpServletResponse response)
+    {
+
+
+        log.info("control entered the login method in the controller using the logindto "+loginDto);
+        LoginResponseDto loginResponseDto = authService.login(loginDto);
+        log.info("execution of the login method is completed and the response is "+loginResponseDto);
+        System.out.println("====================================================================================================================================================================================================================================");
+
+        return new ResponseEntity<>(loginResponseDto , HttpStatus.OK);
+    }
+
+    @GetMapping("/test")
+    public ResponseEntity<String> test()
+    {
+        String message = " varshith first earn money ";
+
+        return new ResponseEntity<>(message , HttpStatus.OK);
+    }
+
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\dto\CustomerCreateDto.java ================
+package com.ecommerce.authuser.dto;
+
+
+import com.ecommerce.authuser.enums.Role;
+import lombok.Data;
+
+import java.util.Set;
+
+@Data
+public class CustomerCreateDto
+{
+    private Long customerId;
+    private String name;
+    private String email;
+    private String phoneNo;
+
+    private Set<Role> roles;
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\dto\LoginDto.java ================
+package com.ecommerce.authuser.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class LoginDto {
+    String email;
+    String password;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\dto\LoginResponseDto.java ================
+package com.ecommerce.authuser.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@NoArgsConstructor
+@AllArgsConstructor
+@Data
+public class LoginResponseDto {
+
+    private Long id;
+    private String accessToken;
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\dto\PostDTO.java ================
+package com.ecommerce.authuser.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class PostDTO {
+    private Long id;
+    private String title;
+    private String description;
+
+    private UserDto author;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\dto\SignUpDto.java ================
+package com.ecommerce.authuser.dto;
+
+
+
+
+import com.ecommerce.authuser.enums.Role;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Set;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class SignUpDto
+{
+    private Long customerId;
+    private String name;
+    private String email;
+    private String phoneNo;
+
+    private String password;
+
+    private Set<Role> roles;
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\dto\UserDto.java ================
+package com.ecommerce.authuser.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class UserDto {
+
+    private Long id;
+    private String email;
+    private String name;
+
+    private LocalDate dateCreated;
+    private LocalDate lastUpdated;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\entity\UserEntity.java ================
+package com.ecommerce.authuser.entity;
+
+
+import com.ecommerce.authuser.enums.Role;
+import com.ecommerce.authuser.springsecurity.securityconfig.PermissionMapping;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Getter
+@Setter
+@ToString
+@Slf4j
+public class UserEntity
+{
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long customerId;
+    private String name;
+    private String email;
+    private String phoneNo;
+
+    private String password;
+
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Enumerated(EnumType.STRING)
+    private Set<Role> roles;
+
+    @CreationTimestamp
+    @Column(name="date_created", updatable = false)
+    private LocalDate dateCreated;
+
+    @UpdateTimestamp
+    @Column(name="last_updated", insertable = false)
+    private LocalDate lastUpdated;
+
+    /**
+     * Builds authorities as plain Strings:
+     * ROLE_* + permission names
+     */
+    public Set<String> getAuthorities()
+    {
+        Set<String> authorities = new HashSet<>();
+
+        for (Role individualrole : roles)
+        {
+            authorities.add("ROLE_" + individualrole.name());
+            authorities.addAll(PermissionMapping.getAuthoritiesForRole(individualrole));
+        }
+        return authorities;
+    }
+
+    /*public Set<String> getAuthorities()
+    {
+        Set<String> authorities = new HashSet<>();
+        roles.forEach(individualrole->{
+            Set<String> permissions = PermissionMapping.getAuthoritiesForRole(individualrole);
+            authorities.addAll(permissions);
+            authorities.add("ROLE_"+individualrole);
+        });
+
+        return authorities;
+
+    }*/
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\enums\Permission.java ================
+package com.ecommerce.authuser.enums;
+
+public enum Permission
+{
+    /* ================= USER ================= */
+    USER_VIEW, USER_CREATE, USER_UPDATE, USER_DELETE, USER_VIEW_ALL,
+
+    /* ================= ADDRESS ================= */
+    ADDRESS_VIEW, ADDRESS_CREATE, ADDRESS_UPDATE, ADDRESS_DELETE,
+
+    /* ================= PRODUCT ================= */
+    PRODUCT_VIEW, PRODUCT_CREATE,PRODUCT_UPDATE, PRODUCT_DELETE,
+
+    /* ================= CATEGORY ================= */
+    CATEGORY_VIEW, CATEGORY_CREATE, CATEGORY_UPDATE, CATEGORY_DELETE,
+
+    /* ================= ORDER ================= */
+    ORDER_VIEW, ORDER_CREATE, ORDER_UPDATE, ORDER_CANCEL, ORDER_VIEW_ALL,
+
+    /* ================= CART ================= */
+    CART_VIEW, CART_ADD_ITEM, CART_REMOVE_ITEM, CART_CLEAR, CART_VIEW_ALL,
+
+    /* ================= PAYMENT ================= */
+    PAYMENT_INITIATE, PAYMENT_VIEW,
+
+    /* ================= INVENTORY ================= */
+    INVENTORY_VIEW, INVENTORY_UPDATE
+}
+
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\enums\Role.java ================
+package com.ecommerce.authuser.enums;
+
+public enum Role
+{
+    USER,
+    SELLER,
+    ADMIN,
+    NORMAL
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\Exception\CustomerIdNotMatchException.java ================
+package com.ecommerce.authuser.Exception;
+
+public class CustomerIdNotMatchException extends  RuntimeException
+{
+    private String message;
+    public CustomerIdNotMatchException(String message)
+    {
+        super(message);
+        this.message=message;
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\Exception\MyGlobalExceptionHandler.java ================
+package com.ecommerce.authuser.Exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class MyGlobalExceptionHandler
+{
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<String> handleResourceNotFoundException(ResourceNotFoundException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(CustomerIdNotMatchException.class)
+    public ResponseEntity<String> CustomerIdNotMatchExceptions(CustomerIdNotMatchException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message, HttpStatus.BAD_REQUEST);
+    }
+
+
+
+
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\Exception\ResourceNotFoundException.java ================
+package com.ecommerce.authuser.Exception;
+
+public class ResourceNotFoundException extends RuntimeException
+{
+    private String message;
+    public ResourceNotFoundException(String message)
+    {
+        super(message);
+        this.message=message;
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\feignclients\Customer_Api_Feignclient.java ================
+package com.ecommerce.authuser.feignclients;
+
+
+import com.ecommerce.authuser.dto.CustomerCreateDto;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
+@FeignClient(name = "CUSTOMERAPI")
+public interface Customer_Api_Feignclient
+{
+    @PostMapping("/api/customer/add/customer")
+    CustomerCreateDto createCustomer(@RequestBody CustomerCreateDto customercreatedto);
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\repository\UserRepository.java ================
+package com.ecommerce.authuser.repository;
+
+
+import com.ecommerce.authuser.entity.UserEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<UserEntity,Long> {
+    Optional<UserEntity> findByEmail(String email);
+
+    Optional<UserEntity> findByName(String name);
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\springsecurity\interceptor\FeinClientInterceptor.java ================
+package com.ecommerce.authuser.springsecurity.interceptor;
+
+import feign.RequestInterceptor;
+import feign.RequestTemplate;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+
+@Slf4j
+@Component
+public class FeinClientInterceptor implements RequestInterceptor
+{
+
+    @Override
+    public void apply(RequestTemplate requestTemplate)
+    {
+            log.info("NATALIE control entered the FeinClientInterceptor");
+
+            requestTemplate.header("X-User-Id", "50");
+
+            List<String> authoritiesOfUser = List.of("ROLE_USER" ,"ROLE_ADMIN","ROLE_SELLER");
+
+
+            //  Joining authorities using comma
+            String authoritiesHeader = String.join(",", authoritiesOfUser);
+            log.info("NATALIE converting Set<String> to string "+authoritiesHeader);
+
+            // Adding header
+            requestTemplate.header("X-User-Authorities", authoritiesHeader);
+
+        //requestTemplate.header("X-User-Create", "CREATING_NEW_USER");
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\springsecurity\securityconfig\AppConfig.java ================
+package com.ecommerce.authuser.springsecurity.securityconfig;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+public class AppConfig
+{
+    //private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    @Bean
+    PasswordEncoder passwordEncoder()
+    {
+        return new BCryptPasswordEncoder();
+    }
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\springsecurity\securityconfig\PermissionMapping.java ================
+package com.ecommerce.authuser.springsecurity.securityconfig;
+
+
+
+import com.ecommerce.authuser.enums.Permission;
+import com.ecommerce.authuser.enums.Role;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static com.ecommerce.authuser.enums.Permission.*;
+import static com.ecommerce.authuser.enums.Role.*;
+
+
+@Slf4j
+public class PermissionMapping
+{
+    /*private static final Map<Role, Set<Permission>> map = Map.of(
+            USER, Set.of(USER_VIEW, POST_VIEW),
+            SELLER, Set.of(POST_CREATE, USER_UPDATE, POST_UPDATE),
+            ADMIN, Set.of(POST_CREATE, USER_UPDATE, POST_UPDATE, USER_DELETE, USER_CREATE, POST_DELETE)
+    );*/
+
+    private static final Map<Role, Set<Permission>> map = Map.of(
+
+            /* ================= CUSTOMER ================= */
+            USER, Set.of(
+                    USER_VIEW, USER_UPDATE,
+                    ADDRESS_VIEW, ADDRESS_CREATE, ADDRESS_UPDATE, ADDRESS_DELETE,
+                    PRODUCT_VIEW, CATEGORY_VIEW,
+                    CART_VIEW, CART_ADD_ITEM, CART_REMOVE_ITEM, CART_CLEAR,
+                    ORDER_CREATE, ORDER_VIEW, ORDER_CANCEL,
+                    PAYMENT_INITIATE, PAYMENT_VIEW
+            ),
+
+            /* ================= SELLER ================= */
+            SELLER, Set.of(
+                    USER_VIEW, USER_UPDATE,
+                    ADDRESS_VIEW, ADDRESS_CREATE, ADDRESS_UPDATE, ADDRESS_DELETE,
+                    PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_UPDATE,
+                    CATEGORY_VIEW,
+                    INVENTORY_VIEW, INVENTORY_UPDATE,
+                    ORDER_VIEW
+            ),
+
+            /* ================= ADMIN ================= */
+            ADMIN, Set.of(
+                    USER_VIEW, USER_VIEW_ALL, USER_CREATE, USER_UPDATE, USER_DELETE,
+                    ADDRESS_VIEW, ADDRESS_CREATE, ADDRESS_UPDATE, ADDRESS_DELETE,
+                    PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_UPDATE, PRODUCT_DELETE,
+                    CATEGORY_VIEW, CATEGORY_CREATE, CATEGORY_UPDATE, CATEGORY_DELETE,
+                    CART_VIEW, CART_VIEW_ALL, ORDER_VIEW,
+                    ORDER_UPDATE, ORDER_VIEW_ALL, ORDER_CANCEL,
+                    INVENTORY_VIEW, INVENTORY_UPDATE,
+                    PAYMENT_VIEW
+
+            )
+    );
+
+    public static Set<String> getAuthoritiesForRole(Role role)
+    {
+        log.info("PermissionMapping â†’ resolving permissions for role {}", role);
+
+         Set<String> authorities  =  map.getOrDefault(role, Set.of())
+                                        .stream()
+                                        .map(Permission::name)
+                                        .collect(Collectors.toSet());
+        return authorities;
+    }
+
+  /*  public static Set<String> getAuthoritiesForRole(Role role)
+    {
+
+        Set<String> allpermissions = map.get(role).stream()
+                .map(permission -> permission))
+                .collect(Collectors.toSet());
+
+        return allpermissions;
+    }
+
+    public static Set<String> getAuthoritiesForRole(Role roles)
+    {
+
+
+        Set<String> authorities = new HashSet<>();
+
+        for (Role role : roles) {
+            // ROLE authority
+            authorities.add("ROLE_" + role.name());
+
+            // Permission authorities
+            ROLE_PERMISSION_MAP
+                    .getOrDefault(role, Set.of())
+                    .forEach(p -> authorities.add(p.name()));
+        }
+
+        return authorities;
+    }
+*/
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\springsecurity\securityservice\AuthService.java ================
+package com.ecommerce.authuser.springsecurity.securityservice;
+
+
+import com.ecommerce.authuser.Exception.CustomerIdNotMatchException;
+import com.ecommerce.authuser.Exception.ResourceNotFoundException;
+import com.ecommerce.authuser.dto.*;
+import com.ecommerce.authuser.entity.UserEntity;
+
+import com.ecommerce.authuser.feignclients.Customer_Api_Feignclient;
+import com.ecommerce.authuser.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+
+@Slf4j
+@Service
+public class AuthService
+{
+    @Autowired
+    private UserRepository userrepo;
+
+    @Autowired
+    private ModelMapper modelmapper;
+
+    @Autowired
+    private PasswordEncoder passwordencoder;
+
+    @Autowired
+    private JwtService jwtservice;
+
+    @Autowired
+    private Customer_Api_Feignclient customerfeign;
+
+
+    public Boolean creatingCustomerInCustomerService(UserEntity savedUser)
+    {
+        boolean result;
+        log.info("NATALIE control entered the creatingCustomerInCustomerService with userentity = "+savedUser);
+
+        CustomerCreateDto customercreatedto = modelmapper.map(savedUser , CustomerCreateDto.class);
+        log.info("NATALIE converting the UserEntity to CustomerCreateDto = "+customercreatedto);
+
+        try
+        {
+            CustomerCreateDto createdcustomer = customerfeign.createCustomer(customercreatedto);
+            log.info("NATALIE saved customer in the customer-service is = "+createdcustomer);
+
+            if(!savedUser.getCustomerId().equals(createdcustomer.getCustomerId()))
+            {
+                throw new CustomerIdNotMatchException("customerId's in the auth-service = "+savedUser.getCustomerId()+" and the Customer-service = "+createdcustomer.getCustomerId()+" doesnot match");
+            }
+            else
+            {
+                log.info("both the ids are matched savedUser.getCustomerId() = "+savedUser.getCustomerId()+" == createdcustomer.getCustomerId() = "+createdcustomer.getCustomerId());
+            }
+
+            result=true;
+        }
+        catch(Exception e)
+        {
+
+            result = false;
+            log.error("NATALIE exception occured while creating customer in customer-service "+e.getMessage());
+            userrepo.deleteById(savedUser.getCustomerId());
+            log.info("creation of the user is failed in customer-service so we are deleting the user-entity from the database ");
+        }
+
+        return result;
+
+    }
+
+    public UserDto signUp(SignUpDto signUpDto)
+    {
+        log.info("control entered the signup() method with signupdto as "+signUpDto);
+        Optional<UserEntity> user = userrepo.findByEmail(signUpDto.getEmail());
+        if(user.isPresent())
+        {
+            throw new ResourceNotFoundException("User with email already exits "+ signUpDto.getEmail());
+        }
+
+        UserEntity toBeCreatedUser = modelmapper.map(signUpDto, UserEntity.class);
+        toBeCreatedUser.setPassword(passwordencoder.encode(toBeCreatedUser.getPassword()));
+
+        log.info("before saving userentity = "+toBeCreatedUser);
+
+        UserEntity savedUser = userrepo.save(toBeCreatedUser);
+
+        log.info("execution of the signup is completed and the saved user is "+savedUser);
+
+        /*
+           id is generated after saving in the database so saving the user in auth-service repo
+           after saving extract the user from database and send them to the customer-service to create a new user
+         */
+
+        if(creatingCustomerInCustomerService(savedUser)==false)
+        {
+            return null;
+        }
+
+        return modelmapper.map(savedUser, UserDto.class);
+    }
+
+    public LoginResponseDto login(LoginDto dto) {
+
+        UserEntity user = userrepo.findByEmail(dto.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!passwordencoder.matches(dto.getPassword(), user.getPassword()))
+        {
+            throw new RuntimeException("Invalid password");
+        }
+
+        String token = jwtservice.generateAccessToken(user);
+
+        return new LoginResponseDto(user.getCustomerId(), token);
+    }
+
+
+
+
+
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\java\com\ecommerce\authuser\springsecurity\securityservice\JwtService.java ================
+package com.ecommerce.authuser.springsecurity.securityservice;
+
+
+import com.ecommerce.authuser.entity.UserEntity;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+@Service
+@Slf4j
+public class JwtService
+{
+   private static String jwtsecret = "ads9f6askj3h4k1hf86asdfiahkjh34a789s6df89ayshkjh3jkh786adsf78ay";
+
+   private SecretKey getJwtSecret()
+   {
+       log.info("getting the secretkey");
+       return Keys.hmacShaKeyFor(jwtsecret.getBytes(StandardCharsets.UTF_8));
+   }
+
+    public String generateAccessToken(UserEntity user)
+    {
+
+
+    /*    // Convert GrantedAuthority â†’ List<String>
+        List<String> authorities = user.getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList();
+                */
+
+        List<String> roles = user.getRoles()
+                .stream()
+                .map(role -> "ROLE_" + role.name())
+                .toList();
+
+        List<String> authorities = new ArrayList<>(user.getAuthorities());
+
+
+
+        return Jwts.builder()
+                .subject(user.getCustomerId().toString())
+                .claim("email", user.getEmail())
+                .claim("rolesset", user.getRoles())
+                .claim("rolesstring",roles)
+                .claim("authorities", authorities)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 10))
+                .signWith(getJwtSecret())
+                .compact();
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\main\resources\application.properties ================
+spring.application.name=authuser
+
+
+
+# ===============================
+# DATABASE (PostgreSQL - Docker)
+# ===============================
+spring.datasource.url=jdbc:postgresql://security-db:5432/securitydb
+spring.datasource.username=user
+spring.datasource.password=password
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+server.port=5000
+
+logging.level.org.springframework.security=DEBUG
+logging.level.org.springframework.security.web.context=DEBUG
+
+eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\authuser\src\test\java\com\ecommerce\authuser\AuthuserApplicationTests.java ================
+package com.ecommerce.authuser;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class AuthuserApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\cartapi\Dockerfile ================
+# ==========================================
+# Stage 1 â†’ Build Stage
+# ==========================================
+
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy Maven configuration
+COPY pom.xml .
+
+# Copy source code
+COPY src ./src
+
+# Build Spring Boot application
+RUN mvn clean package -DskipTests
+
+
+# ==========================================
+# Stage 2 â†’ Runtime Stage
+# ==========================================
+
+FROM eclipse-temurin:17-jdk
+
+# Set working directory
+WORKDIR /app
+
+# Copy generated jar from builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
+# Expose application port
+EXPOSE 7004
+
+# Start Spring Boot application
+ENTRYPOINT ["java", "-jar", "app.jar"]
+
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\cartapi\pom.xml ================
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -366,11 +2306,13 @@ jobs:
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
+
 		<dependency>
-			<groupId>com.mysql</groupId>
-			<artifactId>mysql-connector-j</artifactId>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -381,13 +2323,6 @@ jobs:
 			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-
 
 
 		<dependency>
@@ -428,29 +2363,7 @@ jobs:
 		</dependency>
 
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-micrometer-tracing-brave</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-zipkin</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-tracing-bridge-brave</artifactId>
-		</dependency>
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-micrometer-tracing-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-zipkin-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 
 
 
@@ -558,6 +2471,7 @@ import java.util.List;
 @RequestMapping("/api/carts")
 public class CartController
 {
+    // 1 test
     @Autowired
     private CartService cartservice;
 
@@ -1311,19 +3225,20 @@ public class CartServiceImpl implements CartService
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\cartapi\src\main\resources\application.properties ================
 spring.application.name=cartapi
 
+spring.datasource.url=jdbc:h2:mem:cartdb
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
 
-spring.datasource.url=jdbc:mysql://localhost:3306/latest_microservices_ecommerce_db
-spring.datasource.username=root
-spring.datasource.password=Nvr144@144
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 
 server.port=7004
 
-eureka.instance.prefer-ip-address=true
+eureka.client.enabled=false
 
+management.tracing.enabled=false
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\cartapi\src\test\java\com\ecom\cartapi\CartapiApplicationTests.java ================
 package com.ecom.cartapi;
@@ -2265,6 +4180,38 @@ class CustomerapiApplicationTests {
 	}
 
 }
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes\cartapi\deployment.yml ================
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: cartapi
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: cartapi
+
+  template:
+
+    metadata:
+      labels:
+        app: cartapi
+
+    spec:
+
+      containers:
+
+        - name: cartapi
+
+          image: varshithreddy144/cartapi:25622352390
+
+          ports:
+            - containerPort: 7004
 
 ================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\kubernetes\customerapi\deployment.yml ================
 apiVersion: apps/v1
@@ -3699,6 +5646,950 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
 class OrderapiApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\Dockerfile ================
+FROM eclipse-temurin:17-jdk
+
+WORKDIR /app
+
+COPY target/*.jar app.jar
+
+EXPOSE 7001
+
+ENTRYPOINT ["java","-jar","app.jar"]
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\pom.xml ================
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.1</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.product</groupId>
+	<artifactId>api</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>api</name>
+	<description>Demo project for Spring Boot</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>17</java.version>
+		<spring-cloud.version>2025.1.0</spring-cloud.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.modelmapper</groupId>
+			<artifactId>modelmapper</artifactId>
+			<version>3.2.2</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.8.13</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-micrometer-tracing-brave</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-zipkin</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-brave</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-micrometer-tracing-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-zipkin-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+	</dependencies>
+
+
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\.mvn\wrapper\maven-wrapper.properties ================
+wrapperVersion=3.3.4
+distributionType=only-script
+distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.12/apache-maven-3.9.12-bin.zip
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\ApiApplication.java ================
+package com.product.api;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+
+@SpringBootApplication
+@EnableDiscoveryClient
+@EnableFeignClients
+public class ApiApplication
+{
+	public static void main(String[] args)
+	{
+		SpringApplication.run(ApiApplication.class, args);
+	}
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\config\modelmapperconfig.java ================
+package com.product.api.config;
+
+import org.modelmapper.ModelMapper;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class modelmapperconfig
+{
+    // .
+    @Bean
+    public ModelMapper getmodelmapper()
+    {
+        return new ModelMapper();
+    }
+
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\controller\ProductController.java ================
+package com.product.api.controller;
+
+import com.product.api.dto.CategoryDto;
+import com.product.api.dto.ProductDto;
+import com.product.api.dto.UpdateProductDto;
+import com.product.api.entity.ProductCategory;
+import com.product.api.exception.ResourceNotFoundException;
+import com.product.api.repository.CategoryRepository;
+
+import com.product.api.service.ProductService;
+import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/products")
+public class ProductController
+{
+    @Autowired
+    private ProductService productservice;
+
+    @Autowired
+    private CategoryRepository catrepo;
+
+    @Autowired
+    private ModelMapper modelmapper;
+
+    @GetMapping("/get/allproducts")
+    //@PreAuthorize("hasRole('ADMIN') and hasAuthority('PRODUCT_VIEW')") . . .
+    public ResponseEntity<List<ProductDto>> getAllProducts()
+    {
+        // . hello i am varshith this is test
+        log.info("NATALIE control entered the getAllProducts()");
+
+
+        List<ProductDto> allproducts = productservice.getAllProducts();
+        return new ResponseEntity<>(allproducts , HttpStatus.OK);
+    }
+
+    @GetMapping("/get/products/{categoryId}")
+    @PreAuthorize("hasAnyRole('USER','ADMIN') and hasAuthority('PRODUCT_VIEW')")
+    public ResponseEntity<List<ProductDto>> getAllProductsByCategory(@PathVariable Long categoryId)
+    {
+
+
+        List<ProductDto> allproducts = productservice.getAllProductsbyCategory(categoryId);
+        return new ResponseEntity<>(allproducts , HttpStatus.OK);
+    }
+
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('USER','ADMIN') and hasAuthority('PRODUCT_VIEW')")
+    public ResponseEntity<List<ProductDto>> searchProductByName(String keyword)
+    {
+
+
+        List<ProductDto> allproducts = productservice.findProductByName('%' + keyword + '%');
+        return new ResponseEntity<>(allproducts , HttpStatus.OK);
+    }
+
+    @PostMapping("/add/product/{categoryId}")
+    @PreAuthorize("hasAnyRole('USER','ADMIN') and hasAuthority('PRODUCT_CREATE')")
+    public  ResponseEntity<ProductDto> createProduct(@RequestBody  ProductDto productdto ,@PathVariable Long categoryId)
+    {
+
+        ProductDto productdtocreated = productservice.createProduct(productdto , categoryId);
+        return new ResponseEntity<>(productdtocreated , HttpStatus.OK);
+    }
+
+    @DeleteMapping("/delete/{productId}")
+    @PreAuthorize("hasAnyRole('SELLER','ADMIN') and hasAuthority('PRODUCT_DELETE')")
+    public  ResponseEntity<String> deleteProduct(@PathVariable Long productId)
+    {
+
+        productservice.deleteProduct(productId);
+        return new ResponseEntity<>("success" , HttpStatus.OK);
+    }
+
+    @PostMapping("/create/category/")
+    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_CREATE')")
+    public  ResponseEntity<CategoryDto> createCategory(@RequestBody CategoryDto categorydto)
+    {
+
+        CategoryDto productdtocreated = productservice.createCategory(categorydto );
+        return new ResponseEntity<>(productdtocreated , HttpStatus.OK);
+    }
+
+    @GetMapping("/get/all/categories")
+    @PreAuthorize("hasAnyRole('USER','ADMIN','SELLER') and hasAuthority('CATEGORY_VIEW')")
+    public ResponseEntity<List<CategoryDto>> getAllCategories()
+    {
+
+        List<ProductCategory> allcategoryentity = catrepo.findAll();
+        List<CategoryDto> allcategorydtos=allcategoryentity.stream()
+                .map(individualCategoryentity -> modelmapper.map(individualCategoryentity , CategoryDto.class))
+                .toList();
+
+        return new ResponseEntity<>(allcategorydtos , HttpStatus.OK);
+    }
+
+    @GetMapping("/get/category/byid/{categoryId}")
+    @PreAuthorize("hasAnyRole('USER','ADMIN','SELLER') and hasAuthority('CATEGORY_VIEW')")
+    public ResponseEntity<CategoryDto> getCategorybyId(@PathVariable Long categoryId)
+    {
+
+        ProductCategory categoryentity = catrepo.findById(categoryId)
+                .orElseThrow(()-> new ResourceNotFoundException("category","categoryId",""+categoryId));
+
+        CategoryDto categorydto = modelmapper.map(categoryentity , CategoryDto.class);
+
+        return new ResponseEntity<>(categorydto , HttpStatus.OK);
+    }
+
+    @GetMapping("/get/product/{productId}")
+    @PreAuthorize("hasAnyRole('USER','ADMIN','SELLER') and hasAuthority('POST_VIEW')")
+    public ResponseEntity<ProductDto> getProduct(@PathVariable Long productId)
+    {
+
+        ProductDto productdto = productservice.getProductByproductId(productId);
+        return new ResponseEntity<>(productdto , HttpStatus.OK);
+    }
+
+    @PutMapping("/update/purchasedproduct")
+    @PreAuthorize("hasAnyRole('SELLER','ADMIN') and hasAuthority('POST_VIEW')")
+    public ResponseEntity<String> updateProduct( @RequestBody List<UpdateProductDto> updateproductdto)
+    {
+
+        System.out.println("control entered the product controller");
+        String message  = productservice.updateProduct(updateproductdto);
+        return new ResponseEntity<>(message , HttpStatus.OK);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\dto\CategoryDto.java ================
+package com.product.api.dto;
+
+import lombok.Data;
+
+@Data
+public class CategoryDto
+{
+    private Long categoryId;
+    private String categoryName;
+    private String active;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\dto\ProductDto.java ================
+package com.product.api.dto;
+
+import com.product.api.entity.ProductCategory;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Data
+public class ProductDto
+{
+    private Long productId;
+    private String name;
+    private String description;
+    private String title;
+    private Double unitPrice;
+    private String imageUrl;
+    private boolean active;
+    private int unitsInStock;
+
+    private LocalDate dateCreated;
+    private LocalDate lastUpdated;
+
+    //private ProductCategory category;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\dto\UpdateProductDto.java ================
+package com.product.api.dto;
+
+import lombok.Data;
+
+@Data
+public class UpdateProductDto
+{
+    private  Long productId;
+    private Integer quantity;
+    private String updateType;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\entity\ProductCategory.java ================
+package com.product.api.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "productcategory")
+public class ProductCategory
+{
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long categoryId;
+
+    private String categoryName;
+
+    private String active;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\entity\ProductEntity.java ================
+package com.product.api.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Entity
+@Getter
+@Setter
+@Table(name = "product")
+public class ProductEntity
+{
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long productId;
+    private String name;
+    private String description;
+    private String title;
+    private Double unitPrice;
+    private String imageUrl;
+    private boolean active;
+    private int unitsInStock;
+
+    @CreationTimestamp
+    private LocalDate dateCreated;
+
+    @UpdateTimestamp
+    private LocalDate lastUpdated;
+
+    @ManyToOne
+    @JoinColumn(name="category_id", nullable = false)
+    private ProductCategory category;
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\exception\GenericApiException.java ================
+package com.product.api.exception;
+
+public class GenericApiException extends RuntimeException
+{
+    public GenericApiException(String message)
+    {
+        super(message);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\exception\GlobalExceptionHandler.java ================
+package com.product.api.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler
+{
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<String> myMethodArgumentNotValidException(MethodArgumentNotValidException e)
+    {
+        //String message = "code check chey bey error vachindi  MethodArgumentNotValidException ";
+        String message = e.getDetailMessageCode();
+
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(GenericApiException.class)
+    public ResponseEntity<String> myMethodArgumentNotValidException(GenericApiException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<String> myResourceNotFoundException(ResourceNotFoundException e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> myApiGenericException(Exception e)
+    {
+        String message = e.getMessage();
+        return new ResponseEntity<>(message , HttpStatus.BAD_REQUEST);
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\exception\ResourceNotFoundException.java ================
+package com.product.api.exception;
+
+public class ResourceNotFoundException extends RuntimeException
+{
+    String resourceName;
+    String field;
+    String fieldName;
+    Integer fieldId;
+
+    public ResourceNotFoundException() {
+    }
+
+    public ResourceNotFoundException(String resourceName, String field, String fieldName) {
+        super(String.format("%s not found with %s: %s", resourceName, field, fieldName));
+        this.resourceName = resourceName;
+        this.field = field;
+        this.fieldName = fieldName;
+    }
+
+    public ResourceNotFoundException(String resourceName, String field, Integer fieldId) {
+        super(String.format("%s not found with %s: %d", resourceName, field, fieldId));
+        this.resourceName = resourceName;
+        this.field = field;
+        this.fieldId = fieldId;
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\repository\CategoryRepository.java ================
+package com.product.api.repository;
+
+import com.product.api.entity.ProductCategory;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface CategoryRepository extends JpaRepository<ProductCategory , Long> {
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\repository\ProductRepository.java ================
+package com.product.api.repository;
+
+import com.product.api.dto.ProductDto;
+import com.product.api.entity.ProductEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface ProductRepository extends JpaRepository<ProductEntity, Long> {
+    //List<ProductEntity> findByCategoryId();
+
+    //List<ProductEntity> findByProductNameLikeIgnoreCase(String s);
+
+    List<ProductEntity> findByNameLikeIgnoreCase(String s);
+
+    List<ProductEntity> findByCategoryCategoryId(Long categoryId);
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\security\jwt\config\SecurityConfig.java ================
+package com.product.api.security.jwt.config;
+
+import com.product.api.security.jwt.filter.GatewayAuthenticationFilter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Slf4j
+@EnableMethodSecurity(prePostEnabled = true)
+@Configuration
+public class SecurityConfig
+{
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, GatewayAuthenticationFilter gatewayAuthenticationFilter) throws Exception
+    {
+        // .
+        log.info("NATALIE control entered securityFilterChain ");
+            http.csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS) )
+                .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                    .anyRequest().authenticated()
+                 )
+                .addFilterBefore(gatewayAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+            return http.build();
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\security\jwt\filter\GatewayAuthenticationFilter.java ================
+package com.product.api.security.jwt.filter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+@Slf4j
+@Component
+public class GatewayAuthenticationFilter extends OncePerRequestFilter
+{
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException
+    {
+        log.info("NATALIE control entered doFilterInternal");
+
+        String userId = request.getHeader("X-User-Id");
+        log.info("NATALIE control entered doFilterInternal");
+
+        String authoritiesHeader = request.getHeader("X-User-Authorities");
+        log.info("NATALIE control entered doFilterInternal");
+
+        if (userId != null && authoritiesHeader != null)
+        {
+
+            List<SimpleGrantedAuthority> authorities =
+                    Arrays.stream(authoritiesHeader.split(","))
+                            .map(String::trim)
+                            .map(SimpleGrantedAuthority::new)
+                            .toList();
+
+            /*List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+
+            String[] authorityArray = authoritiesHeader.split(",");
+
+            for (String authority : authorityArray) {
+                String cleaned = authority.trim();
+                SimpleGrantedAuthority grantedAuthority =
+                        new SimpleGrantedAuthority(cleaned);
+
+                authorities.add(grantedAuthority);
+            }*/
+
+
+            log.info("NATALIE List<SimpleGrantedAuthority> authorities = "+authorities);
+
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
+            log.info("NATALIE authentication object created is = "+authentication);
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            log.info("NATALIE execution of doFilterInternal is completed and authentiction object in the securitycontextholder is ="+SecurityContextHolder.getContext().getAuthentication());
+
+        }
+        filterChain.doFilter(request, response);
+
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\service\ProductService.java ================
+package com.product.api.service;
+
+import com.product.api.dto.CategoryDto;
+import com.product.api.dto.ProductDto;
+import com.product.api.dto.UpdateProductDto;
+
+import java.util.List;
+
+public interface ProductService
+{
+    public List<ProductDto> getAllProducts();
+    public List<ProductDto> getAllProductsbyCategory(Long CategoryId);
+    public ProductDto createProduct(ProductDto productdto , Long CategoryId);
+    public  void deleteProduct(Long productId);
+
+    List<ProductDto> findProductByName(String s);
+
+    CategoryDto createCategory(CategoryDto categorydto);
+
+    ProductDto getProductByproductId(Long productId);
+
+    String updateProduct(List<UpdateProductDto> updateproductdto);
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\java\com\product\api\service\ProductServiceImpl.java ================
+package com.product.api.service;
+
+import com.product.api.dto.CategoryDto;
+import com.product.api.dto.ProductDto;
+import com.product.api.dto.UpdateProductDto;
+import com.product.api.entity.ProductCategory;
+import com.product.api.entity.ProductEntity;
+import com.product.api.exception.ResourceNotFoundException;
+import com.product.api.repository.CategoryRepository;
+import com.product.api.repository.ProductRepository;
+import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class ProductServiceImpl implements ProductService
+{
+    @Autowired
+    private ProductRepository productrepo;
+
+    @Autowired
+    private CategoryRepository catrepo;
+
+    @Autowired
+    private ModelMapper modelmapper;
+
+    @Override
+    public List<ProductDto> getAllProducts()
+    {
+        System.out.println("control entered getAllProducts() ");
+        List<ProductEntity> allproductentities = productrepo.findAll();
+        List<ProductDto> allproductdtos = allproductentities.stream()
+                .map(individualproductentity->modelmapper.map(individualproductentity,ProductDto.class))
+                .toList();
+        return allproductdtos;
+    }
+
+    @Override
+    public List<ProductDto> getAllProductsbyCategory(Long categoryId)
+    {
+        System.out.println("control entered getAllProductsbyCategory() "+categoryId);
+        ProductCategory productcategory = catrepo.findById(categoryId)
+                .orElseThrow(()-> new ResourceNotFoundException("category","categoryId" , ""+categoryId));
+        List<ProductEntity>  allproductentity = productrepo.findByCategoryCategoryId(categoryId);
+
+        allproductentity.forEach(System.out::println);
+
+        List<ProductDto> allproductsdto = allproductentity.stream()
+                .map(individualproductentity -> modelmapper.map(individualproductentity , ProductDto.class))
+                .toList();
+
+        System.out.println("printing all products of the category");
+        allproductsdto.forEach(System.out::println);
+
+        return allproductsdto;
+
+    }
+
+    @Override
+    public ProductDto createProduct(ProductDto productdto , Long categoryId)
+    {
+        System.out.println("control entered createproduct() "+productdto);
+        ProductCategory productcategory = catrepo.findById(categoryId)
+                .orElseThrow(()-> new ResourceNotFoundException("category","categoryId" , ""+categoryId));
+
+        ProductEntity productentity = modelmapper.map(productdto , ProductEntity.class);
+        productentity.setCategory(productcategory);
+        ProductEntity savedproductentity =productrepo.save(productentity);
+
+        ProductDto productdtosaved = modelmapper.map(savedproductentity , ProductDto.class);
+
+        System.out.println("savedproduct =  "+productdtosaved);
+
+        return productdtosaved;
+    }
+
+    @Override
+    public void deleteProduct(Long productId)
+    {
+        ProductCategory productcategory = catrepo.findById(productId)
+                .orElseThrow(()-> new ResourceNotFoundException("product","productId" , ""+productId));
+        productrepo.deleteById(productId);
+
+    }
+
+    @Override
+    public List<ProductDto> findProductByName(String keyword)
+    {
+        System.out.println("control entered findProductByName() "+keyword);
+
+        List<ProductEntity> allproducts = productrepo.findByNameLikeIgnoreCase('%' + keyword + '%');
+
+        allproducts.forEach(System.out::println);
+
+        List<ProductDto> allproductsdto = allproducts.stream()
+                .map(individualentity -> modelmapper.map(individualentity , ProductDto.class))
+                .toList();
+
+        System.out.println("printing all prodycts by name ");
+        allproductsdto.forEach(System.out::println);
+
+        return allproductsdto;
+
+    }
+
+    @Override
+    public CategoryDto createCategory(CategoryDto categorydto)
+    {
+        ProductCategory categoryentity = modelmapper.map(categorydto , ProductCategory.class);
+        ProductCategory categoryentitysaved = catrepo.save(categoryentity);
+
+        return modelmapper.map(categoryentitysaved , CategoryDto.class);
+    }
+
+    @Override
+    public ProductDto getProductByproductId(Long productId)
+    {
+        ProductEntity productentity = productrepo.findById(productId)
+                .orElseThrow(()->new ResourceNotFoundException("product","productId",""+productId));
+        return modelmapper.map(productentity , ProductDto.class);
+    }
+
+    @Override
+    public String updateProduct(List<UpdateProductDto> updateproductdtos)
+    {
+        System.out.println("updateProduct() called, list = " + updateproductdtos);
+
+
+        updateproductdtos.forEach(individualproductentity->{
+
+            System.out.println("control entered  individualproductentity foreach");
+
+            Long productId = individualproductentity.getProductId();
+            ProductEntity productentity = productrepo.findById(productId)
+                    .orElseThrow(()->new ResourceNotFoundException("product","productId",""+productId));
+
+            Integer existingquantity = productentity.getUnitsInStock();
+
+            Integer quantity = individualproductentity.getQuantity();
+            String updateType = individualproductentity.getUpdateType();
+
+            if(updateType.equals("ADD"))
+            {
+                productentity.setUnitsInStock(existingquantity + quantity);
+            }
+            else if(updateType.equals("REMOVE"))
+            {
+
+                productentity.setUnitsInStock(existingquantity - quantity);
+                System.out.println("control entered REMOVE and quantity is = "+(existingquantity - quantity));
+            }
+
+            productrepo.save(productentity);
+
+        });
+
+        System.out.println("success");
+
+        return "success";
+    }
+}
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\main\resources\application.properties ================
+spring.application.name=api
+
+
+#spring.datasource.url=jdbc:mysql://host.docker.internal:3306/latest_microservices_ecommerce_db
+#spring.datasource.username=root
+#spring.datasource.password=Nvr144@144
+#spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# ===============================
+# DATABASE (PostgreSQL - Docker)
+# ===============================
+spring.datasource.url=jdbc:postgresql://microservice-db:5432/microservicedb
+spring.datasource.username=user
+spring.datasource.password=password
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+server.port=7001
+
+eureka.instance.prefer-ip-address=true
+
+eureka.client.service-url.defaultZone=http://eurekaserver:8761/eureka
+
+================ FILE: C:\Users\varshith reddy\Desktop\projects\github-actions-test\productapi\src\test\java\com\product\api\ApiApplicationTests.java ================
+package com.product.api;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class ApiApplicationTests {
 
 	@Test
 	void contextLoads() {

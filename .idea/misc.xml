@@ -7,6 +7,9 @@
         <option value="$PROJECT_DIR$/cartapi/pom.xml" />
         <option value="$PROJECT_DIR$/orderapi/pom.xml" />
         <option value="$PROJECT_DIR$/customerapi/pom.xml" />
+        <option value="$PROJECT_DIR$/productapi/pom.xml" />
+        <option value="$PROJECT_DIR$/adminapi/pom.xml" />
+        <option value="$PROJECT_DIR$/authuser/pom.xml" />
       </list>
     </option>
   </component>
