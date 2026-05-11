@@ -24,7 +24,7 @@ spec:
 
         - name: productapi
 
-          image: varshithreddy144/productapi:25675754938
+          image: varshithreddy144/productapi:25688501442
 
           ports:
             - containerPort: 7001
