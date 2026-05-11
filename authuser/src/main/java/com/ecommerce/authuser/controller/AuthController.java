@@ -6,9 +6,7 @@ import com.ecommerce.authuser.dto.LoginDto;
 import com.ecommerce.authuser.dto.LoginResponseDto;
 import com.ecommerce.authuser.dto.SignUpDto;
 import com.ecommerce.authuser.dto.UserDto;
-import com.ecommerce.authuser.springsecurity.securityservice.AuthService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import com.ecommerce.authuser.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -23,7 +21,6 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController
 {
 
-// . . 1 test
     private final AuthService authService;
 
 
@@ -46,15 +43,11 @@ public class AuthController
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponseDto> login(@RequestBody LoginDto loginDto, HttpServletRequest request,
-                                                  HttpServletResponse response)
+    public ResponseEntity<LoginResponseDto> login(@RequestBody LoginDto loginDto)
     {
-
-
         log.info("control entered the login method in the controller using the logindto "+loginDto);
         LoginResponseDto loginResponseDto = authService.login(loginDto);
         log.info("execution of the login method is completed and the response is "+loginResponseDto);
-        System.out.println("====================================================================================================================================================================================================================================");
 
         return new ResponseEntity<>(loginResponseDto , HttpStatus.OK);
     }
@@ -62,7 +55,7 @@ public class AuthController
     @GetMapping("/test")
     public ResponseEntity<String> test()
     {
-        String message = " varshith first earn money ";
+        String message = "authuser test endpoint";
 
         return new ResponseEntity<>(message , HttpStatus.OK);
     }

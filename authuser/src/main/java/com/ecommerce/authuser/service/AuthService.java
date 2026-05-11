@@ -1,4 +1,4 @@
-package com.ecommerce.authuser.springsecurity.securityservice;
+package com.ecommerce.authuser.service;
 
 
 import com.ecommerce.authuser.Exception.CustomerIdNotMatchException;
@@ -11,7 +11,6 @@ import com.ecommerce.authuser.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -20,17 +19,12 @@ import java.util.Optional;
 @Service
 public class AuthService
 {
+    // 1 time
     @Autowired
     private UserRepository userrepo;
 
     @Autowired
     private ModelMapper modelmapper;
-
-    @Autowired
-    private PasswordEncoder passwordencoder;
-
-    @Autowired
-    private JwtService jwtservice;
 
     @Autowired
     private Customer_Api_Feignclient customerfeign;
@@ -39,15 +33,15 @@ public class AuthService
     public Boolean creatingCustomerInCustomerService(UserEntity savedUser)
     {
         boolean result;
-        log.info("NATALIE control entered the creatingCustomerInCustomerService with userentity = "+savedUser);
+        log.info("control entered the creatingCustomerInCustomerService with userentity = "+savedUser);
 
         CustomerCreateDto customercreatedto = modelmapper.map(savedUser , CustomerCreateDto.class);
-        log.info("NATALIE converting the UserEntity to CustomerCreateDto = "+customercreatedto);
+        log.info("converting the UserEntity to CustomerCreateDto = "+customercreatedto);
 
         try
         {
             CustomerCreateDto createdcustomer = customerfeign.createCustomer(customercreatedto);
-            log.info("NATALIE saved customer in the customer-service is = "+createdcustomer);
+            log.info("saved customer in the customer-service is = "+createdcustomer);
 
             if(!savedUser.getCustomerId().equals(createdcustomer.getCustomerId()))
             {
@@ -64,7 +58,7 @@ public class AuthService
         {
 
             result = false;
-            log.error("NATALIE exception occured while creating customer in customer-service "+e.getMessage());
+            log.error("exception occured while creating customer in customer-service "+e.getMessage());
             userrepo.deleteById(savedUser.getCustomerId());
             log.info("creation of the user is failed in customer-service so we are deleting the user-entity from the database ");
         }
@@ -83,7 +77,6 @@ public class AuthService
         }
 
         UserEntity toBeCreatedUser = modelmapper.map(signUpDto, UserEntity.class);
-        toBeCreatedUser.setPassword(passwordencoder.encode(toBeCreatedUser.getPassword()));
 
         log.info("before saving userentity = "+toBeCreatedUser);
 
@@ -91,14 +84,9 @@ public class AuthService
 
         log.info("execution of the signup is completed and the saved user is "+savedUser);
 
-        /*
-           id is generated after saving in the database so saving the user in auth-service repo
-           after saving extract the user from database and send them to the customer-service to create a new user
-         */
-
         if(creatingCustomerInCustomerService(savedUser)==false)
         {
-            return null;
+            throw new RuntimeException("Failed to create customer in customer-service");
         }
 
         return modelmapper.map(savedUser, UserDto.class);
@@ -109,19 +97,13 @@ public class AuthService
         UserEntity user = userrepo.findByEmail(dto.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!passwordencoder.matches(dto.getPassword(), user.getPassword()))
+        if (!dto.getPassword().equals(user.getPassword()))
         {
             throw new RuntimeException("Invalid password");
         }
 
-        String token = jwtservice.generateAccessToken(user);
-
-        return new LoginResponseDto(user.getCustomerId(), token);
+        return new LoginResponseDto(user.getCustomerId(), "login-successful");
     }
-
-
-
-
 
 
 }

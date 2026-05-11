@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 public class LoginResponseDto {
 
     private Long id;
-    private String accessToken;
+    private String message;
 
 }

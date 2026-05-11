@@ -13,7 +13,6 @@ import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -40,11 +39,8 @@ public class ProductController
     }
 
     @GetMapping("/get/allproducts")
-    //@PreAuthorize("hasRole('ADMIN') and hasAuthority('PRODUCT_VIEW')") . . .
     public ResponseEntity<List<ProductDto>> getAllProducts()
     {
-        // . hello i am varshith this is test
-        log.info("NATALIE control entered the getAllProducts()");
 
 
         List<ProductDto> allproducts = productservice.getAllProducts();
@@ -52,7 +48,6 @@ public class ProductController
     }
 
     @GetMapping("/get/products/{categoryId}")
-    @PreAuthorize("hasAnyRole('USER','ADMIN') and hasAuthority('PRODUCT_VIEW')")
     public ResponseEntity<List<ProductDto>> getAllProductsByCategory(@PathVariable Long categoryId)
     {
 
@@ -62,7 +57,6 @@ public class ProductController
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('USER','ADMIN') and hasAuthority('PRODUCT_VIEW')")
     public ResponseEntity<List<ProductDto>> searchProductByName(String keyword)
     {
 
@@ -72,7 +66,6 @@ public class ProductController
     }
 
     @PostMapping("/add/product/{categoryId}")
-    @PreAuthorize("hasAnyRole('USER','ADMIN') and hasAuthority('PRODUCT_CREATE')")
     public  ResponseEntity<ProductDto> createProduct(@RequestBody  ProductDto productdto ,@PathVariable Long categoryId)
     {
 
@@ -81,7 +74,6 @@ public class ProductController
     }
 
     @DeleteMapping("/delete/{productId}")
-    @PreAuthorize("hasAnyRole('SELLER','ADMIN') and hasAuthority('PRODUCT_DELETE')")
     public  ResponseEntity<String> deleteProduct(@PathVariable Long productId)
     {
 
@@ -90,7 +82,6 @@ public class ProductController
     }
 
     @PostMapping("/create/category/")
-    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_CREATE')")
     public  ResponseEntity<CategoryDto> createCategory(@RequestBody CategoryDto categorydto)
     {
 
@@ -99,7 +90,6 @@ public class ProductController
     }
 
     @GetMapping("/get/all/categories")
-    @PreAuthorize("hasAnyRole('USER','ADMIN','SELLER') and hasAuthority('CATEGORY_VIEW')")
     public ResponseEntity<List<CategoryDto>> getAllCategories()
     {
 
@@ -112,7 +102,6 @@ public class ProductController
     }
 
     @GetMapping("/get/category/byid/{categoryId}")
-    @PreAuthorize("hasAnyRole('USER','ADMIN','SELLER') and hasAuthority('CATEGORY_VIEW')")
     public ResponseEntity<CategoryDto> getCategorybyId(@PathVariable Long categoryId)
     {
 
@@ -125,7 +114,6 @@ public class ProductController
     }
 
     @GetMapping("/get/product/{productId}")
-    @PreAuthorize("hasAnyRole('USER','ADMIN','SELLER') and hasAuthority('POST_VIEW')")
     public ResponseEntity<ProductDto> getProduct(@PathVariable Long productId)
     {
 
@@ -134,7 +122,6 @@ public class ProductController
     }
 
     @PutMapping("/update/purchasedproduct")
-    @PreAuthorize("hasAnyRole('SELLER','ADMIN') and hasAuthority('POST_VIEW')")
     public ResponseEntity<String> updateProduct( @RequestBody List<UpdateProductDto> updateproductdto)
     {
 

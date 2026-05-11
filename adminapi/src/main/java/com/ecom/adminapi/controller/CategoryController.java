@@ -5,7 +5,6 @@ import com.ecom.adminapi.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,7 +13,7 @@ import java.util.List;
 @RequestMapping("/api/admin")
 public class CategoryController
 {
-    // . . . . . . . . 1 time 2 time
+    // . . . . . . . . 1 time 2 time 3 time
     @Autowired
     private CategoryService categoryservice;
 
@@ -27,7 +26,6 @@ public class CategoryController
     }
 
     @PostMapping("/add/category")
-    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_CREATE')")
     public ResponseEntity<CategoryDto> addCategory(@RequestBody CategoryDto categorydto)
     {
         CategoryDto categorydtosaved = categoryservice.createCategory(categorydto);
@@ -35,7 +33,6 @@ public class CategoryController
     }
 
     @GetMapping("/get/all/categories")
-    @PreAuthorize("hasAnyRole('SELLER','USER','ADMIN') and hasAuthority('CATEGORY_VIEW')")
     public ResponseEntity<List<CategoryDto>> getAllCategories()
     {
         List<CategoryDto> allcategorydtos = categoryservice.getallCategory();
@@ -43,7 +40,6 @@ public class CategoryController
     }
 
     @GetMapping("/get/byid/{categoryId}")
-    @PreAuthorize("hasAnyRole('SELLER','USER','ADMIN') and hasAuthority('CATEGORY_VIEW')")
     public ResponseEntity<CategoryDto> getCategorybyId(@PathVariable Long categoryId)
     {
         CategoryDto categorydto = categoryservice.getCategoryByIdserv(categoryId);
@@ -51,7 +47,6 @@ public class CategoryController
     }
 
     @DeleteMapping("/delete/{categoryId}")
-    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_DELETE')")
     public ResponseEntity<String> deleteCategory(@PathVariable Long categoryId)
     {
         String message = categoryservice.deleteCategorybyId(categoryId);
@@ -59,7 +54,6 @@ public class CategoryController
     }
 
     @PutMapping("/update/{categoryId}")
-    @PreAuthorize("hasRole('ADMIN') and hasAuthority('CATEGORY_UPDATE')")
     public ResponseEntity<CategoryDto> updateCategory(@PathVariable Long categoryId , @RequestBody CategoryDto categorydto)
     {
         CategoryDto categorydtoupdated = categoryservice.updateCategoryserv(categorydto , categoryId);

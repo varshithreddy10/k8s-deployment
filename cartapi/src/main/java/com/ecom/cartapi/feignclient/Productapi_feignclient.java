@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
-@FeignClient(name = "API")
+@FeignClient(name = "productapi-service")
 public interface Productapi_feignclient
 {
     @GetMapping("/api/products/get/product/{productId}")
