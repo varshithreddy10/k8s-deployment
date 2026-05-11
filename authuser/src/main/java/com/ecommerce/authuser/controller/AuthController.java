@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController
 {
-    // 1 time
+    // 1 time 2 time
 
     private final AuthService authService;
 
