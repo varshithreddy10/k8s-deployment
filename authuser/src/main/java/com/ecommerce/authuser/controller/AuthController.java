@@ -24,11 +24,13 @@ public class AuthController
 
     private final AuthService authService;
 
-
+    int i=0;
 
     @GetMapping("/check/authuser")
     public ResponseEntity<String> checkapi()
     {
+
+        log.info("request for authuser loadtest "+i++);
         String message = "authuser";
         return new ResponseEntity<>(message , HttpStatus.CREATED);
     }
