@@ -3,6 +3,7 @@ package com.ecom.customerapi.controller;
 import com.ecom.customerapi.dto.CustomerDto;
 import com.ecom.customerapi.repository.CustomerRepository;
 import com.ecom.customerapi.service.CustomerService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/customer")
+@Slf4j
 public class CustomerController
 {
 
@@ -33,6 +35,7 @@ public class CustomerController
     @PostMapping("/add/customer")
     public ResponseEntity<CustomerDto> addNewCustomer(@RequestBody CustomerDto customerdto)
     {
+        log.info("control entered customer-service from authuser-service = "+customerdto);
         CustomerDto customersaved = customerservice.addNewCustomerserv(customerdto);
         return new ResponseEntity<>(customersaved , HttpStatus.CREATED);
     }
