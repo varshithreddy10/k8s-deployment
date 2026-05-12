@@ -24,7 +24,7 @@ spec:
 
         - name: adminapi
 
-          image: varshithreddy144/adminapi:25719014213
+          image: varshithreddy144/adminapi:25722965773
 
           ports:
             - containerPort: 7002
