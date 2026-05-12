@@ -15,7 +15,7 @@ import java.time.LocalDate;
 public class CustomerEntity
 {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // Removed @GeneratedValue so it accepts the ID from authuser
     private Long customerId;
     private String name;
     private String email;
