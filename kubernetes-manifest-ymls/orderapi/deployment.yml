@@ -24,7 +24,7 @@ spec:
 
         - name: orderapi
 
-          image: varshithreddy144/orderapi:25719014225
+          image: varshithreddy144/orderapi:25722256604
 
           ports:
             - containerPort: 7005
