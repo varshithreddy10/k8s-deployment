@@ -12,7 +12,7 @@ spec:
     name: authuser
 
   minReplicas: 1
-  maxReplicas: 5
+  maxReplicas: 20
 
   metrics:
     - type: Resource
